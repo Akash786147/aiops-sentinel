@@ -1,0 +1,421 @@
+{
+  "model": "qwen2.5-coder:7b",
+  "ollama_url": "http://100.105.206.57:11434",
+  "rag_enabled": true,
+  "run_type": "retrieval_only",
+  "results": [
+    {
+      "id": "Q01",
+      "category": "code_explanation",
+      "question": "What does list_orders do?",
+      "retrieved_paths": [
+        "services/llm.py",
+        "services/llm.py",
+        "services/monitor.py"
+      ],
+      "expected_paths": [
+        "app/victim.py"
+      ],
+      "retrieval_precision_at_k": 0.0,
+      "retrieval_recall_at_k": 0.0,
+      "retrieval_hit": false
+    },
+    {
+      "id": "Q02",
+      "category": "bug_analysis",
+      "question": "Why might the detailed orders endpoint be slow?",
+      "retrieved_paths": [
+        "services/diagnosis.py",
+        "app/victim.py",
+        "services/llm.py"
+      ],
+      "expected_paths": [
+        "app/victim.py"
+      ],
+      "retrieval_precision_at_k": 0.333,
+      "retrieval_recall_at_k": 1.0,
+      "retrieval_hit": true
+    },
+    {
+      "id": "Q03",
+      "category": "code_retrieval",
+      "question": "Which file exposes the /orders endpoint?",
+      "retrieved_paths": [
+        "app/victim.py",
+        "services/__init__.py",
+        "services/diagnosis.py"
+      ],
+      "expected_paths": [
+        "app/victim.py"
+      ],
+      "retrieval_precision_at_k": 0.333,
+      "retrieval_recall_at_k": 1.0,
+      "retrieval_hit": true
+    },
+    {
+      "id": "Q04",
+      "category": "code_retrieval",
+      "question": "Where are p95 latency metrics calculated?",
+      "retrieved_paths": [
+        "services/__init__.py",
+        "app/__init__.py",
+        "app/victim.py"
+      ],
+      "expected_paths": [
+        "app/victim.py"
+      ],
+      "retrieval_precision_at_k": 0.333,
+      "retrieval_recall_at_k": 1.0,
+      "retrieval_hit": true
+    },
+    {
+      "id": "Q05",
+      "category": "test_generation",
+      "question": "What test should guard against slow detailed order requests?",
+      "retrieved_paths": [
+        "app/victim.py",
+        "services/llm.py",
+        "app/victim.py"
+      ],
+      "expected_paths": [
+        "app/victim.py",
+        "tests/test_victim_app.py"
+      ],
+      "retrieval_precision_at_k": 0.667,
+      "retrieval_recall_at_k": 0.5,
+      "retrieval_hit": true
+    },
+    {
+      "id": "Q06",
+      "category": "monitoring",
+      "question": "What conditions cause Sentinel to declare an incident?",
+      "retrieved_paths": [
+        "services/llm.py",
+        "services/diagnosis.py",
+        "services/llm.py"
+      ],
+      "expected_paths": [
+        "services/monitor.py"
+      ],
+      "retrieval_precision_at_k": 0.0,
+      "retrieval_recall_at_k": 0.0,
+      "retrieval_hit": false
+    },
+    {
+      "id": "Q07",
+      "category": "monitoring",
+      "question": "Which service collects CPU and memory information?",
+      "retrieved_paths": [
+        "services/retrieval.py",
+        "services/__init__.py",
+        "services/retrieval.py"
+      ],
+      "expected_paths": [
+        "services/monitor.py"
+      ],
+      "retrieval_precision_at_k": 0.0,
+      "retrieval_recall_at_k": 0.0,
+      "retrieval_hit": false
+    },
+    {
+      "id": "Q08",
+      "category": "orchestration",
+      "question": "What happens after the monitoring threshold is breached?",
+      "retrieved_paths": [
+        "docs/DEMO_SCRIPT.md",
+        "services/llm.py",
+        "app/victim.py"
+      ],
+      "expected_paths": [
+        "app/main.py",
+        "services/diagnosis.py"
+      ],
+      "retrieval_precision_at_k": 0.0,
+      "retrieval_recall_at_k": 0.0,
+      "retrieval_hit": false
+    },
+    {
+      "id": "Q09",
+      "category": "orchestration",
+      "question": "Which API endpoint starts an incident check?",
+      "retrieved_paths": [
+        "services/llm.py",
+        "services/retrieval.py",
+        "services/retrieval.py"
+      ],
+      "expected_paths": [
+        "app/main.py"
+      ],
+      "retrieval_precision_at_k": 0.0,
+      "retrieval_recall_at_k": 0.0,
+      "retrieval_hit": false
+    },
+    {
+      "id": "Q10",
+      "category": "rag",
+      "question": "How is a code question converted into relevant repository context?",
+      "retrieved_paths": [
+        "services/llm.py",
+        "services/diagnosis.py",
+        "services/retrieval.py"
+      ],
+      "expected_paths": [
+        "services/retrieval.py"
+      ],
+      "retrieval_precision_at_k": 0.333,
+      "retrieval_recall_at_k": 1.0,
+      "retrieval_hit": true
+    },
+    {
+      "id": "Q11",
+      "category": "rag",
+      "question": "How are repository files divided before retrieval?",
+      "retrieved_paths": [
+        "services/llm.py",
+        "services/llm.py",
+        "services/retrieval.py"
+      ],
+      "expected_paths": [
+        "services/retrieval.py"
+      ],
+      "retrieval_precision_at_k": 0.333,
+      "retrieval_recall_at_k": 1.0,
+      "retrieval_hit": true
+    },
+    {
+      "id": "Q12",
+      "category": "rag",
+      "question": "What vector store is used when available?",
+      "retrieved_paths": [
+        "services/llm.py",
+        "services/llm.py",
+        "services/monitor.py"
+      ],
+      "expected_paths": [
+        "services/retrieval.py"
+      ],
+      "retrieval_precision_at_k": 0.0,
+      "retrieval_recall_at_k": 0.0,
+      "retrieval_hit": false
+    },
+    {
+      "id": "Q13",
+      "category": "rag",
+      "question": "How is vector similarity calculated in the fallback retriever?",
+      "retrieved_paths": [
+        "services/__init__.py",
+        "services/retrieval.py",
+        "services/llm.py"
+      ],
+      "expected_paths": [
+        "services/retrieval.py"
+      ],
+      "retrieval_precision_at_k": 0.333,
+      "retrieval_recall_at_k": 1.0,
+      "retrieval_hit": true
+    },
+    {
+      "id": "Q14",
+      "category": "llm",
+      "question": "Which shared model does Sentinel use by default?",
+      "retrieved_paths": [
+        "services/llm.py",
+        "services/retrieval.py",
+        "services/llm.py"
+      ],
+      "expected_paths": [
+        "services/llm.py"
+      ],
+      "retrieval_precision_at_k": 0.667,
+      "retrieval_recall_at_k": 1.0,
+      "retrieval_hit": true
+    },
+    {
+      "id": "Q15",
+      "category": "llm",
+      "question": "How does Sentinel prevent a model from claiming that a fix was applied?",
+      "retrieved_paths": [
+        "services/llm.py",
+        "services/diagnosis.py",
+        "services/retrieval.py"
+      ],
+      "expected_paths": [
+        "services/llm.py"
+      ],
+      "retrieval_precision_at_k": 0.333,
+      "retrieval_recall_at_k": 1.0,
+      "retrieval_hit": true
+    },
+    {
+      "id": "Q16",
+      "category": "streaming",
+      "question": "Which endpoint streams LLM output to the browser?",
+      "retrieved_paths": [
+        "services/diagnosis.py",
+        "services/llm.py",
+        "app/victim.py"
+      ],
+      "expected_paths": [
+        "app/main.py",
+        "web/stream-ui.js"
+      ],
+      "retrieval_precision_at_k": 0.0,
+      "retrieval_recall_at_k": 0.0,
+      "retrieval_hit": false
+    },
+    {
+      "id": "Q17",
+      "category": "streaming",
+      "question": "How is streamed model output displayed in the interface?",
+      "retrieved_paths": [
+        "services/llm.py",
+        "services/retrieval.py",
+        "services/llm.py"
+      ],
+      "expected_paths": [
+        "web/stream-ui.js"
+      ],
+      "retrieval_precision_at_k": 0.0,
+      "retrieval_recall_at_k": 0.0,
+      "retrieval_hit": false
+    },
+    {
+      "id": "Q18",
+      "category": "safety",
+      "question": "Does Sentinel merge a code fix automatically?",
+      "retrieved_paths": [
+        "services/diagnosis.py",
+        "services/llm.py",
+        "services/__init__.py"
+      ],
+      "expected_paths": [
+        "app/main.py",
+        "docs/PROJECT_CHARTER.md"
+      ],
+      "retrieval_precision_at_k": 0.0,
+      "retrieval_recall_at_k": 0.0,
+      "retrieval_hit": false
+    },
+    {
+      "id": "Q19",
+      "category": "safety",
+      "question": "What information is recorded when a human approves a remediation handoff?",
+      "retrieved_paths": [
+        "services/diagnosis.py",
+        "app/victim.py",
+        "app/victim.py"
+      ],
+      "expected_paths": [
+        "app/main.py",
+        "app/store.py"
+      ],
+      "retrieval_precision_at_k": 0.0,
+      "retrieval_recall_at_k": 0.0,
+      "retrieval_hit": false
+    },
+    {
+      "id": "Q20",
+      "category": "audit",
+      "question": "Where is the audit trail stored?",
+      "retrieved_paths": [
+        "docs/DEMO_SCRIPT.md",
+        "services/__init__.py",
+        "services/llm.py"
+      ],
+      "expected_paths": [
+        "app/store.py"
+      ],
+      "retrieval_precision_at_k": 0.0,
+      "retrieval_recall_at_k": 0.0,
+      "retrieval_hit": false
+    },
+    {
+      "id": "Q21",
+      "category": "repository_understanding",
+      "question": "Which files participate from a user question to streamed LLM response?",
+      "retrieved_paths": [
+        "services/llm.py",
+        "services/diagnosis.py",
+        "services/retrieval.py"
+      ],
+      "expected_paths": [
+        "web/stream-ui.js",
+        "app/main.py",
+        "services/llm.py",
+        "services/retrieval.py"
+      ],
+      "retrieval_precision_at_k": 0.667,
+      "retrieval_recall_at_k": 0.5,
+      "retrieval_hit": true
+    },
+    {
+      "id": "Q22",
+      "category": "repository_understanding",
+      "question": "Which files are affected if the retrieval algorithm changes?",
+      "retrieved_paths": [
+        "services/retrieval.py",
+        "services/llm.py",
+        "app/victim.py"
+      ],
+      "expected_paths": [
+        "services/retrieval.py",
+        "app/main.py",
+        "services/diagnosis.py"
+      ],
+      "retrieval_precision_at_k": 0.333,
+      "retrieval_recall_at_k": 0.333,
+      "retrieval_hit": true
+    },
+    {
+      "id": "Q23",
+      "category": "repository_understanding",
+      "question": "Trace the path from a slow request to human approval.",
+      "retrieved_paths": [
+        "services/diagnosis.py",
+        "services/llm.py",
+        "docs/PROJECT_CHARTER.md"
+      ],
+      "expected_paths": [
+        "app/victim.py",
+        "services/monitor.py",
+        "app/main.py",
+        "services/diagnosis.py"
+      ],
+      "retrieval_precision_at_k": 0.333,
+      "retrieval_recall_at_k": 0.25,
+      "retrieval_hit": true
+    },
+    {
+      "id": "Q24",
+      "category": "deployment",
+      "question": "Which containers are defined for the system deployment?",
+      "retrieved_paths": [
+        "services/retrieval.py",
+        "services/retrieval.py",
+        "services/retrieval.py"
+      ],
+      "expected_paths": [
+        "docker-compose.yml"
+      ],
+      "retrieval_precision_at_k": 0.0,
+      "retrieval_recall_at_k": 0.0,
+      "retrieval_hit": false
+    },
+    {
+      "id": "Q25",
+      "category": "testing",
+      "question": "Which test covers the order latency budget?",
+      "retrieved_paths": [
+        "services/llm.py",
+        "app/victim.py",
+        "services/llm.py"
+      ],
+      "expected_paths": [
+        "tests/test_victim_app.py"
+      ],
+      "retrieval_precision_at_k": 0.0,
+      "retrieval_recall_at_k": 0.0,
+      "retrieval_hit": false
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+services:
+  sentinel:
+    build: .
+    ports: ["8000:8000"]
+    environment:
+      OLLAMA_BASE_URL: http://100.105.206.57:11434
+      OLLAMA_MODEL: qwen2.5-coder:7b
+      VICTIM_URL: http://victim:8001
+      CODE_ROOT: /workspace
+    depends_on: [victim]
+
+  victim:
+    build: .
+    command: uvicorn app.victim:app --host 0.0.0.0 --port 8001
+    ports: ["8001:8001"]
+
+  ollama:
+    image: ollama/ollama:latest
+    profiles: [local-ollama]
+    ports: ["11434:11434"]
+    volumes: [ollama-data:/root/.ollama]
+
+  # Optional rubric evidence: Sourcegraph OSS indexes this repository. Start with:
+  # docker compose --profile sourcegraph up -d sourcegraph
+  sourcegraph:
+    image: sourcegraph/server:5.9.8
+    profiles: [sourcegraph]
+    ports: ["7080:7080"]
+    volumes: [sourcegraph-data:/var/opt/sourcegraph]
+
+volumes:
+  ollama-data:
+  sourcegraph-data:
