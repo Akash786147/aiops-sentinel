@@ -1,0 +1,231 @@
+{
+  "scenario": "F02",
+  "seed": 1,
+  "fault_class": "cpu",
+  "expected_action": "code_fix",
+  "truth": {
+    "service": "orders",
+    "file": "orders/pricing.py",
+    "start_line": 14,
+    "end_line": 22,
+    "fault_commit_position": 1
+  },
+  "deployment": [
+    "Give bundle discount for repeated SKUs",
+    "Document order summary route",
+    "Keep more request samples",
+    "Name the customer tiers"
+  ],
+  "detection": {
+    "robust": [
+      {
+        "service": "orders",
+        "symptoms": [
+          "latency"
+        ],
+        "severity": 23.5,
+        "signals": [
+          "latency on POST /quote: 5.02 -> 29.53 (z=23.5, 18 buckets)"
+        ]
+      }
+    ],
+    "threshold": []
+  },
+  "action": "code_fix",
+  "confidence": 0.91,
+  "tests": {
+    "template": {
+      "code": "\"\"\"Sentinel-generated confirming test for INC-f662b0c9 (orders).\n\nHypothesis: POST /quote is dominated by orders/pricing.py:11-22 apply_discounts, which runs a fixed 20,000-round nested comparison loop over the items list before returning the total. That makes quote latency scale far above the small work done by average_item_price or the other changed modules.\n\"\"\"\nimport statistics\nimport time\nimport tracemalloc\n\nfrom fastapi.testclient import TestClient\n\nfrom orders.app import app\n\nclient = TestClient(app)\n\n\ndef _call(method, url, body):\n    started = time.perf_counter()\n    response = client.request(method, url, content=body or None, headers={\"content-type\": \"application/json\"})\n    return response, (time.perf_counter() - started) * 1000\n\n\nREQUEST = ('POST', '/quote', '{\"items\":[],\"tier\":\"gold\"}')\nBUDGET_P50_MS = 11.6  # pre-incident p50 1.59 ms, with margin\nBUDGET_P95_MS = 25.4  # pre-incident p95 5.44 ms, with margin\n\n\ndef test_incident_request_stays_within_latency_budget():\n    _call(*REQUEST)  # warm-up\n    timings = sorted(_call(*REQUEST)[1] for _ in range(20))\n    assert statistics.median(timings) <= BUDGET_P50_MS, timings\n    assert timings[18] <= BUDGET_P95_MS, timings\n",
+      "guard": [],
+      "faulty": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": ".                                                                        [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-xbru45ej\\ws\\report.xml -\n1 passed in 1.03s\n"
+      },
+      "fixed": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": ".                                                                        [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-mooleqh2\\ws\\report.xml -\n1 passed in 0.70s\n"
+      },
+      "confirming": false
+    },
+    "llm": {
+      "code": "from statistics import median\nimport time\n\nfrom fastapi.testclient import TestClient\n\nfrom orders.app import app\n\n\ndef test_post_quote_latency_is_within_healthy_budget():\n    payload = {\n        \"tier\": \"gold\",\n        \"items\": [\n            {\"sku\": \"sku-1\", \"qty\": 1, \"price\": 5.0},\n            {\"sku\": \"sku-2\", \"qty\": 1, \"price\": 6.0},\n            {\"sku\": \"sku-3\", \"qty\": 1, \"price\": 7.0},\n            {\"sku\": \"sku-4\", \"qty\": 1, \"price\": 8.0},\n        ],\n    }\n\n    baseline_p50_ms = 1.59\n    baseline_p95_ms = 5.44\n    median_budget_ms = max(3 * baseline_p50_ms, baseline_p50_ms + 10)\n    p95_budget_ms = max(2 * baseline_p95_ms, baseline_p95_ms + 20)\n\n    with TestClient(app) as client:\n        warmup_response = client.post(\"/quote\", json=payload)\n        assert (\n            warmup_response.status_code == 200\n        ), f\"POST /quote should return 200 for a valid quote payload, got {warmup_response.status_code}: {warmup_response.text}\"\n\n        durations_ms = []\n        for _ in range(20):\n            start = time.perf_counter()\n            response = client.post(\"/quote\", json=payload)\n            elapsed_ms = (time.perf_counter() - start) * 1000\n            durations_ms.append(elapsed_ms)\n\n            assert (\n                response.status_code == 200\n            ), f\"POST /quote should not return a 5xx for a valid quote payload, got {response.status_code}: {response.text}\"\n\n    median_ms = median(durations_ms)\n    p95_ms = sorted(durations_ms)[int(0.95 * (len(durations_ms) - 1))]\n\n    assert (\n        median_ms <= median_budget_ms\n    ), f\"POST /quote median latency {median_ms:.2f} ms exceeds healthy budget {median_budget_ms:.2f} ms\"\n\n    assert (\n        p95_ms <= p95_budget_ms\n    ), f\"POST /quote p95 latency {p95_ms:.2f} ms exceeds healthy budget {p95_budget_ms:.2f} ms\"\n",
+      "guard": [],
+      "faulty": {
+        "outcome": "assertion_failed",
+        "exit_code": 1,
+        "detail": "AssertionError: POST /quote median latency 20.89 ms exceeds healthy budget 11.59 ms\nassert 20.885900012217462 <= 11.59",
+        "output_tail": "t(\"/quote\", json=payload)\n            assert (\n                warmup_response.status_code == 200\n            ), f\"POST /quote should return 200 for a valid quote payload, got {warmup_response.status_code}: {warmup_response.text}\"\n    \n            durations_ms = []\n            for _ in range(20):\n                start = time.perf_counter()\n                response = client.post(\"/quote\", json=payload)\n                elapsed_ms = (time.perf_counter() - start) * 1000\n                durations_ms.append(elapsed_ms)\n    \n                assert (\n                    response.status_code == 200\n                ), f\"POST /quote should not return a 5xx for a valid quote payload, got {response.status_code}: {response.text}\"\n    \n        median_ms = median(durations_ms)\n        p95_ms = sorted(durations_ms)[int(0.95 * (len(durations_ms) - 1))]\n    \n>       assert (\n            median_ms <= median_budget_ms\n        ), f\"POST /quote median latency {median_ms:.2f} ms exceeds healthy budget {median_budget_ms:.2f} ms\"\nE       AssertionError: POST /quote median latency 20.89 ms exceeds healthy budget 11.59 ms\nE       assert 20.885900012217462 <= 11.59\n\nsentinel_generated\\test_incident.py:45: AssertionError\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-xwbcagwb\\ws\\report.xml -\n=========================== short test summary info ===========================\nFAILED sentinel_generated/test_incident.py::test_post_quote_latency_is_within_healthy_budget\n1 failed in 1.26s\n"
+      },
+      "fixed": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": ".                                                                        [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-_c9ql965\\ws\\report.xml -\n1 passed in 0.69s\n"
+      },
+      "confirming": true
+    }
+  },
+  "llm_action": "code_fix",
+  "localization": {
+    "legacy_v0": {
+      "rank": 3,
+      "file_rank": 3,
+      "top": [
+        "inventory\\app.py:1",
+        "services.yaml:1",
+        "orders\\pricing.py:1"
+      ]
+    },
+    "recent_changes": {
+      "rank": 4,
+      "file_rank": 4,
+      "top": [
+        "orders/repository.py:1-23",
+        "common/telemetry.py:1-23",
+        "orders/app.py:24-27"
+      ]
+    },
+    "bm25": {
+      "rank": null,
+      "file_rank": 4,
+      "top": [
+        "orders/repository.py:26-27",
+        "common/telemetry.py:62-81",
+        "payments/gateway.py:24-32"
+      ]
+    },
+    "dense": {
+      "rank": null,
+      "file_rank": null,
+      "top": [
+        "orders/repository.py:26-27",
+        "orders/repository.py:1-23",
+        "common/telemetry.py:62-81"
+      ]
+    },
+    "hybrid": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/pricing.py:11-22",
+        "orders/repository.py:1-23",
+        "orders/pricing.py:25-29"
+      ]
+    },
+    "hybrid_unscoped": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/pricing.py:11-22",
+        "orders/repository.py:1-23",
+        "orders/pricing.py:25-29"
+      ]
+    },
+    "no_trace": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/pricing.py:11-22",
+        "orders/repository.py:1-23",
+        "orders/pricing.py:25-29"
+      ]
+    },
+    "no_call_graph": {
+      "rank": 4,
+      "file_rank": 4,
+      "top": [
+        "orders/repository.py:1-23",
+        "common/telemetry.py:1-23",
+        "orders/repository.py:26-27"
+      ]
+    },
+    "no_change": {
+      "rank": 2,
+      "file_rank": 1,
+      "top": [
+        "orders/pricing.py:25-29",
+        "orders/pricing.py:11-22",
+        "orders/repository.py:26-27"
+      ]
+    },
+    "no_dense": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/pricing.py:11-22",
+        "orders/pricing.py:25-29",
+        "common/telemetry.py:1-23"
+      ]
+    },
+    "no_lexical": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/pricing.py:11-22",
+        "orders/repository.py:1-23",
+        "common/telemetry.py:1-23"
+      ]
+    },
+    "hybrid_llm": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/pricing.py:11-22",
+        "orders/pricing.py:25-29",
+        "orders/pricing.py:7-8"
+      ],
+      "prompt_tokens": 1534,
+      "completion_tokens": 750,
+      "latency_s": 4.95,
+      "valid": true,
+      "invented_ids": []
+    },
+    "rag_llm": {
+      "rank": null,
+      "file_rank": null,
+      "top": [
+        "orders/repository.py:26-27",
+        "orders/repository.py:1-23",
+        "common/telemetry.py:62-81"
+      ],
+      "prompt_tokens": 1613,
+      "completion_tokens": 2164,
+      "latency_s": 13.99,
+      "valid": true,
+      "invented_ids": []
+    },
+    "hybrid_llm@gptoss": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/pricing.py:11-22",
+        "common/telemetry.py:62-81",
+        "orders/pricing.py:25-29"
+      ],
+      "prompt_tokens": 1626,
+      "completion_tokens": 489,
+      "latency_s": 2.05,
+      "valid": true,
+      "invented_ids": []
+    },
+    "rag_llm@gptoss": {
+      "rank": null,
+      "file_rank": null,
+      "top": [
+        "orders/repository.py:26-27",
+        "inventory/store.py:16-18",
+        "payments/gateway.py:24-32"
+      ],
+      "prompt_tokens": 1705,
+      "completion_tokens": 503,
+      "latency_s": 1.89,
+      "valid": true,
+      "invented_ids": []
+    }
+  },
+  "exceptions_in_packet": 0
+}

@@ -1,0 +1,239 @@
+{
+  "scenario": "F04",
+  "seed": 1,
+  "fault_class": "errors",
+  "expected_action": "code_fix",
+  "truth": {
+    "service": "inventory",
+    "file": "inventory/store.py",
+    "start_line": 24,
+    "end_line": 24,
+    "fault_commit_position": 1
+  },
+  "deployment": [
+    "Simplify stock lookup in reserve",
+    "Note finance sign-off on gold discount",
+    "Describe the views endpoint",
+    "Document order summary route"
+  ],
+  "detection": {
+    "robust": [
+      {
+        "service": "inventory",
+        "symptoms": [
+          "errors"
+        ],
+        "severity": 37.2,
+        "signals": [
+          "errors on POST /reserve: 0 -> 0.11 (z=37.2, 20 buckets)",
+          "errors: 0 -> 0.05 (z=16.5, 18 buckets)"
+        ]
+      }
+    ],
+    "threshold": [
+      {
+        "service": "inventory",
+        "symptoms": [
+          "errors"
+        ]
+      }
+    ]
+  },
+  "action": "code_fix",
+  "confidence": 1.0,
+  "tests": {
+    "template": {
+      "code": "\"\"\"Sentinel-generated confirming test for INC-3d512a7b (inventory).\n\nHypothesis: The reserve path now does a direct `STOCK[sku]` lookup, so requests for unknown SKUs like `sku-43`, `sku-41`, and `sku-40` raise `KeyError` instead of being refused. The stack trace and the deployment commit point to `inventory/store.py` as the source of the 500s.\n\"\"\"\nimport statistics\nimport time\nimport tracemalloc\n\nfrom fastapi.testclient import TestClient\n\nfrom inventory.app import app\n\nclient = TestClient(app)\n\n\ndef _call(method, url, body):\n    started = time.perf_counter()\n    response = client.request(method, url, content=body or None, headers={\"content-type\": \"application/json\"})\n    return response, (time.perf_counter() - started) * 1000\n\n\nFAILING_REQUESTS = [('POST', '/reserve', '{\"sku\":\"sku-43\",\"qty\":1}'), ('POST', '/reserve', '{\"sku\":\"sku-41\",\"qty\":1}'), ('POST', '/reserve', '{\"sku\":\"sku-40\",\"qty\":1}')]\n\n\ndef test_incident_requests_do_not_fail():\n    for method, url, body in FAILING_REQUESTS:\n        response, _ = _call(method, url, body)\n        assert response.status_code < 500, (url, body, response.status_code)\n",
+      "guard": [],
+      "faulty": {
+        "outcome": "assertion_failed",
+        "exit_code": 1,
+        "detail": "AssertionError: ('/reserve', '{\"sku\":\"sku-43\",\"qty\":1}', 500)\nassert 500 < 500\n +  where 500 = <Response [500 Internal Server Error]>.status_code",
+        "output_tail": "F                                                                        [100%]\n================================== FAILURES ===================================\n_____________________ test_incident_requests_do_not_fail ______________________\n\n    def test_incident_requests_do_not_fail():\n        for method, url, body in FAILING_REQUESTS:\n            response, _ = _call(method, url, body)\n>           assert response.status_code < 500, (url, body, response.status_code)\nE           AssertionError: ('/reserve', '{\"sku\":\"sku-43\",\"qty\":1}', 500)\nE           assert 500 < 500\nE            +  where 500 = <Response [500 Internal Server Error]>.status_code\n\nsentinel_generated\\test_incident.py:28: AssertionError\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-um8ieobx\\ws\\report.xml -\n=========================== short test summary info ===========================\nFAILED sentinel_generated/test_incident.py::test_incident_requests_do_not_fail\n1 failed in 1.12s\n"
+      },
+      "fixed": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": ".                                                                        [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-wpc9d3_8\\ws\\report.xml -\n1 passed in 0.66s\n"
+      },
+      "confirming": true
+    },
+    "llm": {
+      "code": "import pytest\nfrom fastapi.testclient import TestClient\n\nfrom inventory.app import app\n\n\n@pytest.mark.parametrize(\"sku\", [\"sku-43\", \"sku-41\", \"sku-40\"])\ndef test_reserve_unknown_sku_is_refused_not_error(sku):\n    client = TestClient(app)\n\n    response = client.post(\"/reserve\", json={\"sku\": sku, \"qty\": 1})\n\n    assert (\n        response.status_code == 409\n    ), f\"unknown SKU {sku} should be refused with HTTP 409, got {response.status_code} and body {response.text}\"\n",
+      "guard": [],
+      "faulty": {
+        "outcome": "assertion_failed",
+        "exit_code": 1,
+        "detail": "AssertionError: unknown SKU sku-43 should be refused with HTTP 409, got 500 and body {\"detail\":\"internal error\"}\nassert 500 == 409\n +  where 500 = <Response [500 Internal Server Error]>.status_code; AssertionError: unknown SKU sku-41 should be refused with HTTP 409, got 500 and body {\"detail\":\"internal error\"}\nassert 500 == 409\n +  where 500 = <Response [500 Internal Server Error]>.status_code; AssertionError: unknown SKU sku-40 should be refused with HTTP 409, got 500 and body {\"detail\":\"intern",
+        "output_tail": " with HTTP 409, got 500 and body {\"detail\":\"internal error\"}\nE       assert 500 == 409\nE        +  where 500 = <Response [500 Internal Server Error]>.status_code\n\nsentinel_generated\\test_incident.py:13: AssertionError\n____________ test_reserve_unknown_sku_is_refused_not_error[sku-40] ____________\n\nsku = 'sku-40'\n\n    @pytest.mark.parametrize(\"sku\", [\"sku-43\", \"sku-41\", \"sku-40\"])\n    def test_reserve_unknown_sku_is_refused_not_error(sku):\n        client = TestClient(app)\n    \n        response = client.post(\"/reserve\", json={\"sku\": sku, \"qty\": 1})\n    \n>       assert (\n            response.status_code == 409\n        ), f\"unknown SKU {sku} should be refused with HTTP 409, got {response.status_code} and body {response.text}\"\nE       AssertionError: unknown SKU sku-40 should be refused with HTTP 409, got 500 and body {\"detail\":\"internal error\"}\nE       assert 500 == 409\nE        +  where 500 = <Response [500 Internal Server Error]>.status_code\n\nsentinel_generated\\test_incident.py:13: AssertionError\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-kcdk6q3y\\ws\\report.xml -\n=========================== short test summary info ===========================\nFAILED sentinel_generated/test_incident.py::test_reserve_unknown_sku_is_refused_not_error[sku-43]\nFAILED sentinel_generated/test_incident.py::test_reserve_unknown_sku_is_refused_not_error[sku-41]\nFAILED sentinel_generated/test_incident.py::test_reserve_unknown_sku_is_refused_not_error[sku-40]\n3 failed in 0.85s\n"
+      },
+      "fixed": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": "...                                                                      [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-2oekicxa\\ws\\report.xml -\n3 passed in 0.84s\n"
+      },
+      "confirming": true
+    }
+  },
+  "llm_action": "code_fix",
+  "localization": {
+    "legacy_v0": {
+      "rank": 3,
+      "file_rank": 3,
+      "top": [
+        "inventory\\app.py:1",
+        "payments\\fraud.py:1",
+        "inventory\\store.py:1"
+      ]
+    },
+    "recent_changes": {
+      "rank": 4,
+      "file_rank": 4,
+      "top": [
+        "orders/app.py:24-27",
+        "inventory/app.py:35-38",
+        "orders/pricing.py:1-4"
+      ]
+    },
+    "bm25": {
+      "rank": 5,
+      "file_rank": 5,
+      "top": [
+        "payments/gateway.py:54-65",
+        "inventory/app.py:28-32",
+        "common/telemetry.py:83-104"
+      ]
+    },
+    "dense": {
+      "rank": 3,
+      "file_rank": 3,
+      "top": [
+        "inventory/app.py:28-32",
+        "inventory/app.py:14-16",
+        "inventory/store.py:21-29"
+      ]
+    },
+    "hybrid": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/store.py:21-29",
+        "inventory/app.py:28-32",
+        "common/telemetry.py:38-60"
+      ]
+    },
+    "hybrid_unscoped": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/store.py:21-29",
+        "inventory/app.py:28-32",
+        "common/telemetry.py:38-60"
+      ]
+    },
+    "no_trace": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/store.py:21-29",
+        "inventory/app.py:28-32",
+        "inventory/store.py:1-9"
+      ]
+    },
+    "no_call_graph": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/store.py:21-29",
+        "inventory/app.py:28-32",
+        "common/telemetry.py:38-60"
+      ]
+    },
+    "no_change": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/store.py:21-29",
+        "inventory/app.py:28-32",
+        "common/telemetry.py:38-60"
+      ]
+    },
+    "no_dense": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/store.py:21-29",
+        "inventory/app.py:28-32",
+        "common/telemetry.py:38-60"
+      ]
+    },
+    "no_lexical": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/store.py:21-29",
+        "inventory/app.py:28-32",
+        "inventory/store.py:1-9"
+      ]
+    },
+    "hybrid_llm": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/store.py:21-29",
+        "inventory/store.py:1-9",
+        "inventory/app.py:28-32"
+      ],
+      "prompt_tokens": 1566,
+      "completion_tokens": 384,
+      "latency_s": 3.21,
+      "valid": true,
+      "invented_ids": []
+    },
+    "rag_llm": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/store.py:21-29",
+        "inventory/store.py:1-9",
+        "inventory/app.py:28-32"
+      ],
+      "prompt_tokens": 1020,
+      "completion_tokens": 617,
+      "latency_s": 4.37,
+      "valid": true,
+      "invented_ids": []
+    },
+    "hybrid_llm@gptoss": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/store.py:21-29",
+        "inventory/store.py:1-9",
+        "common/telemetry.py:38-60"
+      ],
+      "prompt_tokens": 1658,
+      "completion_tokens": 458,
+      "latency_s": 13.62,
+      "valid": true,
+      "invented_ids": []
+    },
+    "rag_llm@gptoss": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/store.py:21-29",
+        "inventory/store.py:1-9",
+        "inventory/app.py:28-32"
+      ],
+      "prompt_tokens": 1112,
+      "completion_tokens": 404,
+      "latency_s": 15.22,
+      "valid": true,
+      "invented_ids": []
+    }
+  },
+  "exceptions_in_packet": 1
+}

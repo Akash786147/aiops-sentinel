@@ -1,0 +1,26 @@
+{
+  "scenario": "F09",
+  "seed": 2,
+  "fault_class": "latency",
+  "expected_action": "code_fix",
+  "truth": {
+    "service": "inventory",
+    "file": "inventory/store.py",
+    "start_line": 27,
+    "end_line": 28,
+    "fault_commit_position": 2
+  },
+  "deployment": [
+    "Name the customer tiers",
+    "Write the reservation audit atomically with the stock update",
+    "Describe the views endpoint",
+    "Note finance sign-off on gold discount"
+  ],
+  "detection": {
+    "robust": [],
+    "threshold": []
+  },
+  "action": "none",
+  "confidence": null,
+  "tests": {}
+}

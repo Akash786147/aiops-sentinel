@@ -1,0 +1,234 @@
+{
+  "scenario": "F07",
+  "seed": 1,
+  "fault_class": "cpu",
+  "expected_action": "code_fix",
+  "truth": {
+    "service": "payments",
+    "file": "payments/fraud.py",
+    "start_line": 7,
+    "end_line": 7,
+    "fault_commit_position": 3
+  },
+  "deployment": [
+    "Document restock",
+    "Note finance sign-off on gold discount",
+    "Allow dotted QA account names",
+    "Clarify connection cost"
+  ],
+  "detection": {
+    "robust": [
+      {
+        "service": "payments",
+        "symptoms": [
+          "latency",
+          "cpu"
+        ],
+        "severity": 50.8,
+        "signals": [
+          "latency on POST /refunds: 1.31 -> 2.04 (z=50.8, 6 buckets)",
+          "latency on POST /pay: 55.15 -> 103.16 (z=38.2, 17 buckets)",
+          "cpu: 9.4 -> 31.5 (z=7.8, 7 buckets)"
+        ]
+      }
+    ],
+    "threshold": []
+  },
+  "action": "investigate",
+  "confidence": 0.39,
+  "tests": {
+    "template": {
+      "code": "\"\"\"Sentinel-generated confirming test for INC-19181b21 (payments).\n\nHypothesis: The fraud check regex in payments/fraud.py can backtrack heavily on long non-matching emails like qaaaaaaaaaaaaaaaaaaaaaa@example.org, and /pay runs it on every request before charging. That explains the CPU spike and the higher /pay latency, with /refunds likely slowed by shared-host contention.\n\"\"\"\nimport statistics\nimport time\nimport tracemalloc\n\nfrom fastapi.testclient import TestClient\n\nfrom payments.app import app\n\nclient = TestClient(app)\n\n\ndef _call(method, url, body):\n    started = time.perf_counter()\n    response = client.request(method, url, content=body or None, headers={\"content-type\": \"application/json\"})\n    return response, (time.perf_counter() - started) * 1000\n\n\nREQUEST = ('POST', '/refunds', '{\"amount\":23.71}')\nBUDGET_P50_MS = 10.8  # pre-incident p50 0.78 ms, with margin\nBUDGET_P95_MS = 21.4  # pre-incident p95 1.37 ms, with margin\n\n\ndef test_incident_request_stays_within_latency_budget():\n    _call(*REQUEST)  # warm-up\n    timings = sorted(_call(*REQUEST)[1] for _ in range(20))\n    assert statistics.median(timings) <= BUDGET_P50_MS, timings\n    assert timings[18] <= BUDGET_P95_MS, timings\n",
+      "guard": [],
+      "faulty": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": ".                                                                        [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-_up105w7\\ws\\report.xml -\n1 passed in 1.51s\n"
+      },
+      "fixed": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": ".                                                                        [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-l7ugq66a\\ws\\report.xml -\n1 passed in 1.31s\n"
+      },
+      "confirming": false
+    },
+    "llm": {
+      "code": "import statistics\nimport time\n\nfrom fastapi.testclient import TestClient\n\nfrom payments.app import app\n\n\ndef test_pay_remains_fast_for_long_non_matching_email():\n    email = \"qaaaaaaaaaaaaaaaaaaaaaa@example.org\"\n    body = {\"email\": email, \"amount\": 18.61}\n\n    with TestClient(app) as client:\n        warmup = client.post(\"/pay\", json=body)\n        assert warmup.status_code == 200, \"warm-up /pay request should succeed\"\n\n        timings_ms = []\n        statuses = []\n        for _ in range(20):\n            start = time.perf_counter()\n            response = client.post(\"/pay\", json=body)\n            elapsed_ms = (time.perf_counter() - start) * 1000\n            timings_ms.append(elapsed_ms)\n            statuses.append(response.status_code)\n\n        assert all(code == 200 for code in statuses), (\n            f\"/pay should not return 5xx for a valid request; got statuses {statuses}\"\n        )\n\n        median_ms = statistics.median(timings_ms)\n        p95_ms = statistics.quantiles(timings_ms, n=20, method=\"inclusive\")[18]\n\n        assert median_ms <= 14.31, (\n            f\"/pay median latency for a valid long email should stay within budget; \"\n            f\"got {median_ms:.2f} ms vs budget 14.31 ms\"\n        )\n        assert p95_ms <= 110.4, (\n            f\"/pay p95 latency for a valid long email should stay within budget; \"\n            f\"got {p95_ms:.2f} ms vs budget 110.40 ms\"\n        )\n",
+      "guard": [],
+      "faulty": {
+        "outcome": "assertion_failed",
+        "exit_code": 1,
+        "detail": "AssertionError: /pay median latency for a valid long email should stay within budget; got 150.67 ms vs budget 14.31 ms\nassert 150.66600000136532 <= 14.31",
+        "output_tail": "on=body)\n            assert warmup.status_code == 200, \"warm-up /pay request should succeed\"\n    \n            timings_ms = []\n            statuses = []\n            for _ in range(20):\n                start = time.perf_counter()\n                response = client.post(\"/pay\", json=body)\n                elapsed_ms = (time.perf_counter() - start) * 1000\n                timings_ms.append(elapsed_ms)\n                statuses.append(response.status_code)\n    \n            assert all(code == 200 for code in statuses), (\n                f\"/pay should not return 5xx for a valid request; got statuses {statuses}\"\n            )\n    \n            median_ms = statistics.median(timings_ms)\n            p95_ms = statistics.quantiles(timings_ms, n=20, method=\"inclusive\")[18]\n    \n>           assert median_ms <= 14.31, (\n                f\"/pay median latency for a valid long email should stay within budget; \"\n                f\"got {median_ms:.2f} ms vs budget 14.31 ms\"\n            )\nE           AssertionError: /pay median latency for a valid long email should stay within budget; got 150.67 ms vs budget 14.31 ms\nE           assert 150.66600000136532 <= 14.31\n\nsentinel_generated\\test_incident.py:33: AssertionError\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-qvdexsor\\ws\\report.xml -\n=========================== short test summary info ===========================\nFAILED sentinel_generated/test_incident.py::test_pay_remains_fast_for_long_non_matching_email\n1 failed in 5.31s\n"
+      },
+      "fixed": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": ".                                                                        [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-zllrtvjg\\ws\\report.xml -\n1 passed in 1.53s\n"
+      },
+      "confirming": true
+    }
+  },
+  "llm_action": "code_fix",
+  "localization": {
+    "legacy_v0": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "payments\\fraud.py:1",
+        "payments\\app.py:1",
+        "inventory\\app.py:1"
+      ]
+    },
+    "recent_changes": {
+      "rank": 2,
+      "file_rank": 2,
+      "top": [
+        "payments/gateway.py:1-17",
+        "payments/fraud.py:1-7",
+        "orders/pricing.py:1-4"
+      ]
+    },
+    "bm25": {
+      "rank": null,
+      "file_rank": null,
+      "top": [
+        "orders/repository.py:25-26",
+        "common/telemetry.py:62-81",
+        "payments/gateway.py:24-32"
+      ]
+    },
+    "dense": {
+      "rank": null,
+      "file_rank": null,
+      "top": [
+        "orders/repository.py:25-26",
+        "orders/repository.py:1-22",
+        "payments/gateway.py:1-17"
+      ]
+    },
+    "hybrid": {
+      "rank": 2,
+      "file_rank": 2,
+      "top": [
+        "payments/config.py:1-7",
+        "payments/fraud.py:1-7",
+        "payments/gateway.py:24-32"
+      ]
+    },
+    "hybrid_unscoped": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "payments/fraud.py:1-7",
+        "payments/config.py:1-7",
+        "payments/gateway.py:24-32"
+      ]
+    },
+    "no_trace": {
+      "rank": 2,
+      "file_rank": 2,
+      "top": [
+        "payments/config.py:1-7",
+        "payments/fraud.py:1-7",
+        "payments/gateway.py:24-32"
+      ]
+    },
+    "no_call_graph": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "payments/fraud.py:1-7",
+        "common/telemetry.py:62-81",
+        "payments/gateway.py:24-32"
+      ]
+    },
+    "no_change": {
+      "rank": null,
+      "file_rank": 8,
+      "top": [
+        "payments/config.py:1-7",
+        "payments/gateway.py:24-32",
+        "payments/gateway.py:54-65"
+      ]
+    },
+    "no_dense": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "payments/fraud.py:1-7",
+        "payments/config.py:1-7",
+        "payments/fraud.py:10-12"
+      ]
+    },
+    "no_lexical": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "payments/fraud.py:1-7",
+        "payments/config.py:1-7",
+        "payments/fraud.py:10-12"
+      ]
+    },
+    "hybrid_llm": {
+      "rank": 2,
+      "file_rank": 1,
+      "top": [
+        "payments/fraud.py:10-12",
+        "payments/fraud.py:1-7",
+        "payments/gateway.py:54-65"
+      ],
+      "prompt_tokens": 1395,
+      "completion_tokens": 1773,
+      "latency_s": 13.99,
+      "valid": true,
+      "invented_ids": []
+    },
+    "rag_llm": {
+      "rank": null,
+      "file_rank": null,
+      "top": [
+        "payments/gateway.py:24-32",
+        "payments/gateway.py:1-17",
+        "common/telemetry.py:62-81"
+      ],
+      "prompt_tokens": 1620,
+      "completion_tokens": 1240,
+      "latency_s": 10.03,
+      "valid": true,
+      "invented_ids": []
+    },
+    "hybrid_llm@gptoss": {
+      "rank": 4,
+      "file_rank": 4,
+      "top": [
+        "payments/config.py:1-7",
+        "payments/gateway.py:24-32",
+        "payments/gateway.py:54-65"
+      ],
+      "prompt_tokens": 1487,
+      "completion_tokens": 642,
+      "latency_s": 11.93,
+      "valid": true,
+      "invented_ids": []
+    },
+    "rag_llm@gptoss": {
+      "rank": null,
+      "file_rank": null,
+      "top": [
+        "payments/gateway.py:24-32",
+        "orders/repository.py:25-26",
+        "common/telemetry.py:62-81"
+      ],
+      "prompt_tokens": 1712,
+      "completion_tokens": 764,
+      "latency_s": 18.1,
+      "valid": true,
+      "invented_ids": []
+    }
+  },
+  "exceptions_in_packet": 0
+}

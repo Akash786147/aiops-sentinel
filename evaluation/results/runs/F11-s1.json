@@ -1,0 +1,239 @@
+{
+  "scenario": "F11",
+  "seed": 1,
+  "fault_class": "errors",
+  "expected_action": "code_fix",
+  "truth": {
+    "service": "payments",
+    "file": "payments/app.py",
+    "start_line": 28,
+    "end_line": 28,
+    "fault_commit_position": 4
+  },
+  "deployment": [
+    "Add supported currencies",
+    "Clarify connection cost",
+    "Keep more request samples",
+    "Normalise refund reason"
+  ],
+  "detection": {
+    "robust": [
+      {
+        "service": "payments",
+        "symptoms": [
+          "errors"
+        ],
+        "severity": 72.0,
+        "signals": [
+          "errors on POST /refunds: 0 -> 0.3 (z=72.0, 20 buckets)",
+          "errors: 0 -> 0.09 (z=24.4, 20 buckets)"
+        ]
+      }
+    ],
+    "threshold": [
+      {
+        "service": "payments",
+        "symptoms": [
+          "errors"
+        ]
+      }
+    ]
+  },
+  "action": "code_fix",
+  "confidence": 1.0,
+  "tests": {
+    "template": {
+      "code": "\"\"\"Sentinel-generated confirming test for INC-1e7b3bcb (payments).\n\nHypothesis: The /refunds handler unconditionally reads payload[\"reason\"], so refund requests that only include an amount raise KeyError and return 500. The telemetry middleware is only surfacing the exception and recording the failed request, not causing it.\n\"\"\"\nimport statistics\nimport time\nimport tracemalloc\n\nfrom fastapi.testclient import TestClient\n\nfrom payments.app import app\n\nclient = TestClient(app)\n\n\ndef _call(method, url, body):\n    started = time.perf_counter()\n    response = client.request(method, url, content=body or None, headers={\"content-type\": \"application/json\"})\n    return response, (time.perf_counter() - started) * 1000\n\n\nFAILING_REQUESTS = [('POST', '/refunds', '{\"amount\":23.71}'), ('POST', '/refunds', '{\"amount\":54.2}'), ('POST', '/refunds', '{\"amount\":8.07}'), ('POST', '/refunds', '{\"amount\":16.84}')]\n\n\ndef test_incident_requests_do_not_fail():\n    for method, url, body in FAILING_REQUESTS:\n        response, _ = _call(method, url, body)\n        assert response.status_code < 500, (url, body, response.status_code)\n",
+      "guard": [],
+      "faulty": {
+        "outcome": "assertion_failed",
+        "exit_code": 1,
+        "detail": "AssertionError: ('/refunds', '{\"amount\":23.71}', 500)\nassert 500 < 500\n +  where 500 = <Response [500 Internal Server Error]>.status_code",
+        "output_tail": "F                                                                        [100%]\n================================== FAILURES ===================================\n_____________________ test_incident_requests_do_not_fail ______________________\n\n    def test_incident_requests_do_not_fail():\n        for method, url, body in FAILING_REQUESTS:\n            response, _ = _call(method, url, body)\n>           assert response.status_code < 500, (url, body, response.status_code)\nE           AssertionError: ('/refunds', '{\"amount\":23.71}', 500)\nE           assert 500 < 500\nE            +  where 500 = <Response [500 Internal Server Error]>.status_code\n\nsentinel_generated\\test_incident.py:28: AssertionError\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-c_zx99ra\\ws\\report.xml -\n=========================== short test summary info ===========================\nFAILED sentinel_generated/test_incident.py::test_incident_requests_do_not_fail\n1 failed in 1.01s\n"
+      },
+      "fixed": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": ".                                                                        [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-nip9njde\\ws\\report.xml -\n1 passed in 0.67s\n"
+      },
+      "confirming": true
+    },
+    "llm": {
+      "code": "import statistics\nimport time\n\nfrom fastapi.testclient import TestClient\n\nfrom payments.app import app\n\n\ndef test_refunds_with_amount_only_succeeds_and_stays_fast():\n    client = TestClient(app)\n    payload = {\"amount\": 23.71}\n\n    durations_ms = []\n\n    for _ in range(20):\n        start = time.perf_counter()\n        response = client.post(\"/refunds\", json=payload)\n        durations_ms.append((time.perf_counter() - start) * 1000)\n\n        assert (\n            response.status_code == 200\n        ), f\"/refunds with amount only should succeed, got {response.status_code}: {response.text}\"\n\n    median_ms = statistics.median(durations_ms)\n    p95_ms = sorted(durations_ms)[18]  # 20 samples -> approximate p95\n\n    baseline_p50_ms = 0.77\n    baseline_p95_ms = 1.4\n\n    median_budget_ms = max(3 * baseline_p50_ms, baseline_p50_ms + 10)\n    p95_budget_ms = max(2 * baseline_p95_ms, baseline_p95_ms + 20)\n\n    assert (\n        median_ms <= median_budget_ms\n    ), f\"Median /refunds latency {median_ms:.3f} ms exceeded healthy budget {median_budget_ms:.3f} ms\"\n    assert (\n        p95_ms <= p95_budget_ms\n    ), f\"P95 /refunds latency {p95_ms:.3f} ms exceeded healthy budget {p95_budget_ms:.3f} ms\"\n",
+      "guard": [],
+      "faulty": {
+        "outcome": "assertion_failed",
+        "exit_code": 1,
+        "detail": "AssertionError: /refunds with amount only should succeed, got 500: {\"detail\":\"internal error\"}\nassert 500 == 200\n +  where 500 = <Response [500 Internal Server Error]>.status_code",
+        "output_tail": "F                                                                        [100%]\n================================== FAILURES ===================================\n____________ test_refunds_with_amount_only_succeeds_and_stays_fast ____________\n\n    def test_refunds_with_amount_only_succeeds_and_stays_fast():\n        client = TestClient(app)\n        payload = {\"amount\": 23.71}\n    \n        durations_ms = []\n    \n        for _ in range(20):\n            start = time.perf_counter()\n            response = client.post(\"/refunds\", json=payload)\n            durations_ms.append((time.perf_counter() - start) * 1000)\n    \n>           assert (\n                response.status_code == 200\n            ), f\"/refunds with amount only should succeed, got {response.status_code}: {response.text}\"\nE           AssertionError: /refunds with amount only should succeed, got 500: {\"detail\":\"internal error\"}\nE           assert 500 == 200\nE            +  where 500 = <Response [500 Internal Server Error]>.status_code\n\nsentinel_generated\\test_incident.py:20: AssertionError\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-rabjovqo\\ws\\report.xml -\n=========================== short test summary info ===========================\nFAILED sentinel_generated/test_incident.py::test_refunds_with_amount_only_succeeds_and_stays_fast\n1 failed in 0.78s\n"
+      },
+      "fixed": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": ".                                                                        [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-72nn7b5z\\ws\\report.xml -\n1 passed in 0.83s\n"
+      },
+      "confirming": true
+    }
+  },
+  "llm_action": "code_fix",
+  "localization": {
+    "legacy_v0": {
+      "rank": null,
+      "file_rank": null,
+      "top": [
+        "payments\\fraud.py:1",
+        "inventory\\app.py:1",
+        "services.yaml:1"
+      ]
+    },
+    "recent_changes": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "payments/app.py:26-29",
+        "common/telemetry.py:1-23",
+        "payments/gateway.py:1-17"
+      ]
+    },
+    "bm25": {
+      "rank": 2,
+      "file_rank": 2,
+      "top": [
+        "payments/gateway.py:54-65",
+        "payments/app.py:26-29",
+        "common/telemetry.py:83-104"
+      ]
+    },
+    "dense": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "payments/app.py:26-29",
+        "inventory/app.py:28-32",
+        "orders/app.py:14-16"
+      ]
+    },
+    "hybrid": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "payments/app.py:26-29",
+        "common/telemetry.py:38-60",
+        "payments/config.py:1-8"
+      ]
+    },
+    "hybrid_unscoped": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "payments/app.py:26-29",
+        "common/telemetry.py:38-60",
+        "payments/config.py:1-8"
+      ]
+    },
+    "no_trace": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "payments/app.py:26-29",
+        "payments/config.py:1-8",
+        "common/telemetry.py:83-104"
+      ]
+    },
+    "no_call_graph": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "payments/app.py:26-29",
+        "common/telemetry.py:38-60",
+        "payments/config.py:1-8"
+      ]
+    },
+    "no_change": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "payments/app.py:26-29",
+        "common/telemetry.py:38-60",
+        "payments/gateway.py:54-65"
+      ]
+    },
+    "no_dense": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "payments/app.py:26-29",
+        "common/telemetry.py:38-60",
+        "common/telemetry.py:1-23"
+      ]
+    },
+    "no_lexical": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "payments/app.py:26-29",
+        "common/telemetry.py:38-60",
+        "payments/config.py:1-8"
+      ]
+    },
+    "hybrid_llm": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "payments/app.py:26-29",
+        "common/telemetry.py:38-60",
+        "common/telemetry.py:83-104"
+      ],
+      "prompt_tokens": 1964,
+      "completion_tokens": 475,
+      "latency_s": 4.11,
+      "valid": true,
+      "invented_ids": []
+    },
+    "rag_llm": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "payments/app.py:26-29",
+        "payments/app.py:14-16",
+        "common/telemetry.py:83-104"
+      ],
+      "prompt_tokens": 1190,
+      "completion_tokens": 682,
+      "latency_s": 5.36,
+      "valid": true,
+      "invented_ids": []
+    },
+    "hybrid_llm@gptoss": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "payments/app.py:26-29",
+        "common/telemetry.py:38-60",
+        "common/telemetry.py:83-104"
+      ],
+      "prompt_tokens": 2056,
+      "completion_tokens": 451,
+      "latency_s": 16.45,
+      "valid": true,
+      "invented_ids": []
+    },
+    "rag_llm@gptoss": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "payments/app.py:26-29",
+        "common/telemetry.py:83-104",
+        "payments/app.py:14-16"
+      ],
+      "prompt_tokens": 1282,
+      "completion_tokens": 496,
+      "latency_s": 15.11,
+      "valid": true,
+      "invented_ids": []
+    }
+  },
+  "exceptions_in_packet": 1
+}

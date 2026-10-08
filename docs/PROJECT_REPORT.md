@@ -1,5 +1,8 @@
 # AIOps Sentinel — Technical Project Report
 
+> **Superseded (v0).** This report describes the first prototype (victim app + hashing retriever).
+> The current system, evaluation and results are in [PROJECT_GUIDE.md](PROJECT_GUIDE.md).
+
 ## 1. Project summary
 
 **AIOps Sentinel** is a code-aware incident-assistance prototype for small DevOps teams. A running order-service demo exposes metrics. When latency or errors cross a threshold, Sentinel retrieves relevant source code, asks a coding model for an evidence-grounded explanation, proposes a safe next action, and records a human approval before any CI/CD handoff.

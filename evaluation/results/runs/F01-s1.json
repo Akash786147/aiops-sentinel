@@ -1,0 +1,231 @@
+{
+  "scenario": "F01",
+  "seed": 1,
+  "fault_class": "latency",
+  "expected_action": "code_fix",
+  "truth": {
+    "service": "orders",
+    "file": "orders/repository.py",
+    "start_line": 44,
+    "end_line": 44,
+    "fault_commit_position": 1
+  },
+  "deployment": [
+    "Load customer profile next to each order",
+    "Explain high-value limit",
+    "Note finance sign-off on gold discount",
+    "Describe the views endpoint"
+  ],
+  "detection": {
+    "robust": [
+      {
+        "service": "orders",
+        "symptoms": [
+          "latency"
+        ],
+        "severity": 58.2,
+        "signals": [
+          "latency on GET /orders: 12.31 -> 136.18 (z=58.2, 20 buckets)"
+        ]
+      }
+    ],
+    "threshold": []
+  },
+  "action": "code_fix",
+  "confidence": 0.89,
+  "tests": {
+    "template": {
+      "code": "\"\"\"Sentinel-generated confirming test for INC-4ac653b5 (orders).\n\nHypothesis: The /orders handler now builds each response by calling load_customer once per order, creating an N+1 database-round-trip pattern. With the default limit of 50, fetch_orders_with_profiles triggers repeated _query sleeps, which matches the post-deploy latency jump.\n\"\"\"\nimport statistics\nimport time\nimport tracemalloc\n\nfrom fastapi.testclient import TestClient\n\nfrom orders.app import app\n\nclient = TestClient(app)\n\n\ndef _call(method, url, body):\n    started = time.perf_counter()\n    response = client.request(method, url, content=body or None, headers={\"content-type\": \"application/json\"})\n    return response, (time.perf_counter() - started) * 1000\n\n\nREQUEST = ('GET', '/orders', '')\nBUDGET_P50_MS = 24.5  # pre-incident p50 8.17 ms, with margin\nBUDGET_P95_MS = 32.2  # pre-incident p95 12.17 ms, with margin\n\n\ndef test_incident_request_stays_within_latency_budget():\n    _call(*REQUEST)  # warm-up\n    timings = sorted(_call(*REQUEST)[1] for _ in range(20))\n    assert statistics.median(timings) <= BUDGET_P50_MS, timings\n    assert timings[18] <= BUDGET_P95_MS, timings\n",
+      "guard": [],
+      "faulty": {
+        "outcome": "assertion_failed",
+        "exit_code": 1,
+        "detail": "AssertionError: [127.56670004455373, 127.97989998944104, 128.1219000229612, 128.42919997638091, 128.83320002583787, 129.29529999382794, ...]\nassert 129.84275000053458 <= 24.5\n +  where 129.84275000053458 = <function median at 0x0000025D99C01120>([127.56670004455373, 127.97989998944104, 128.1219000229612, 128.42919997638091, 128.83320002583787, 129.29529999382794, ...])\n +    where <function median at 0x0000025D99C01120> = statistics.median",
+        "output_tail": "F                                                                        [100%]\n================================== FAILURES ===================================\n______________ test_incident_request_stays_within_latency_budget ______________\n\n    def test_incident_request_stays_within_latency_budget():\n        _call(*REQUEST)  # warm-up\n        timings = sorted(_call(*REQUEST)[1] for _ in range(20))\n>       assert statistics.median(timings) <= BUDGET_P50_MS, timings\nE       AssertionError: [127.56670004455373, 127.97989998944104, 128.1219000229612, 128.42919997638091, 128.83320002583787, 129.29529999382794, ...]\nE       assert 129.84275000053458 <= 24.5\nE        +  where 129.84275000053458 = <function median at 0x0000025D99C01120>([127.56670004455373, 127.97989998944104, 128.1219000229612, 128.42919997638091, 128.83320002583787, 129.29529999382794, ...])\nE        +    where <function median at 0x0000025D99C01120> = statistics.median\n\nsentinel_generated\\test_incident.py:30: AssertionError\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-mz9r1m0g\\ws\\report.xml -\n=========================== short test summary info ===========================\nFAILED sentinel_generated/test_incident.py::test_incident_request_stays_within_latency_budget\n1 failed in 3.89s\n"
+      },
+      "fixed": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": ".                                                                        [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-blrqsi8y\\ws\\report.xml -\n1 passed in 0.81s\n"
+      },
+      "confirming": true
+    },
+    "llm": {
+      "code": "import statistics\nimport time\n\nfrom fastapi.testclient import TestClient\n\nfrom orders.app import app\n\n\ndef test_orders_list_latency_within_healthy_budget():\n    baseline_p50_ms = 8.17\n    baseline_p95_ms = 12.17\n    median_budget_ms = max(3 * baseline_p50_ms, baseline_p50_ms + 10)\n    p95_budget_ms = max(2 * baseline_p95_ms, baseline_p95_ms + 20)\n\n    with TestClient(app) as client:\n        warmup = client.get(\"/orders\")\n        assert (\n            warmup.status_code == 200\n        ), f\"/orders warmup request returned HTTP {warmup.status_code}, expected 200\"\n\n        durations_ms = []\n        for i in range(20):\n            start = time.perf_counter()\n            response = client.get(\"/orders\")\n            elapsed_ms = (time.perf_counter() - start) * 1000.0\n\n            assert (\n                response.status_code == 200\n            ), f\"/orders request {i + 1} returned HTTP {response.status_code}, expected 200\"\n            durations_ms.append(elapsed_ms)\n\n    median_ms = statistics.median(durations_ms)\n    p95_ms = statistics.quantiles(durations_ms, n=20, method=\"inclusive\")[18]\n\n    assert (\n        median_ms <= median_budget_ms\n    ), f\"/orders median latency {median_ms:.2f} ms exceeds healthy budget {median_budget_ms:.2f} ms\"\n    assert (\n        p95_ms <= p95_budget_ms\n    ), f\"/orders p95 latency {p95_ms:.2f} ms exceeds healthy budget {p95_budget_ms:.2f} ms\"\n",
+      "guard": [],
+      "faulty": {
+        "outcome": "assertion_failed",
+        "exit_code": 1,
+        "detail": "AssertionError: /orders median latency 127.44 ms exceeds healthy budget 24.51 ms\nassert 127.4365000135731 <= 24.509999999999998",
+        "output_tail": "p95_ms + 20)\n    \n        with TestClient(app) as client:\n            warmup = client.get(\"/orders\")\n            assert (\n                warmup.status_code == 200\n            ), f\"/orders warmup request returned HTTP {warmup.status_code}, expected 200\"\n    \n            durations_ms = []\n            for i in range(20):\n                start = time.perf_counter()\n                response = client.get(\"/orders\")\n                elapsed_ms = (time.perf_counter() - start) * 1000.0\n    \n                assert (\n                    response.status_code == 200\n                ), f\"/orders request {i + 1} returned HTTP {response.status_code}, expected 200\"\n                durations_ms.append(elapsed_ms)\n    \n        median_ms = statistics.median(durations_ms)\n        p95_ms = statistics.quantiles(durations_ms, n=20, method=\"inclusive\")[18]\n    \n>       assert (\n            median_ms <= median_budget_ms\n        ), f\"/orders median latency {median_ms:.2f} ms exceeds healthy budget {median_budget_ms:.2f} ms\"\nE       AssertionError: /orders median latency 127.44 ms exceeds healthy budget 24.51 ms\nE       assert 127.4365000135731 <= 24.509999999999998\n\nsentinel_generated\\test_incident.py:35: AssertionError\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-4c_jp0p3\\ws\\report.xml -\n=========================== short test summary info ===========================\nFAILED sentinel_generated/test_incident.py::test_orders_list_latency_within_healthy_budget\n1 failed in 3.82s\n"
+      },
+      "fixed": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": ".                                                                        [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-ap3sy3zk\\ws\\report.xml -\n1 passed in 0.82s\n"
+      },
+      "confirming": true
+    }
+  },
+  "llm_action": "code_fix",
+  "localization": {
+    "legacy_v0": {
+      "rank": 7,
+      "file_rank": 7,
+      "top": [
+        "inventory\\app.py:1",
+        "orders\\app.py:1",
+        "services.yaml:1"
+      ]
+    },
+    "recent_changes": {
+      "rank": 4,
+      "file_rank": 4,
+      "top": [
+        "inventory/app.py:35-38",
+        "orders/pricing.py:1-4",
+        "payments/fraud.py:1-7"
+      ]
+    },
+    "bm25": {
+      "rank": null,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:25-26",
+        "common/telemetry.py:62-81",
+        "payments/gateway.py:24-32"
+      ]
+    },
+    "dense": {
+      "rank": null,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:25-26",
+        "orders/repository.py:1-22",
+        "inventory/store.py:16-18"
+      ]
+    },
+    "hybrid": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:41-44",
+        "orders/repository.py:25-26",
+        "orders/repository.py:1-22"
+      ]
+    },
+    "hybrid_unscoped": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:41-44",
+        "orders/repository.py:25-26",
+        "orders/repository.py:1-22"
+      ]
+    },
+    "no_trace": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:41-44",
+        "orders/repository.py:25-26",
+        "orders/repository.py:1-22"
+      ]
+    },
+    "no_call_graph": {
+      "rank": 2,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:25-26",
+        "orders/repository.py:41-44",
+        "orders/repository.py:1-22"
+      ]
+    },
+    "no_change": {
+      "rank": 3,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:25-26",
+        "orders/repository.py:1-22",
+        "orders/repository.py:41-44"
+      ]
+    },
+    "no_dense": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:41-44",
+        "orders/repository.py:25-26",
+        "orders/repository.py:1-22"
+      ]
+    },
+    "no_lexical": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:41-44",
+        "orders/repository.py:1-22",
+        "orders/repository.py:25-26"
+      ]
+    },
+    "hybrid_llm": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:41-44",
+        "orders/repository.py:29-32",
+        "orders/repository.py:25-26"
+      ],
+      "prompt_tokens": 1387,
+      "completion_tokens": 455,
+      "latency_s": 7.36,
+      "valid": true,
+      "invented_ids": []
+    },
+    "rag_llm": {
+      "rank": null,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:25-26",
+        "orders/repository.py:1-22",
+        "common/telemetry.py:62-81"
+      ],
+      "prompt_tokens": 1251,
+      "completion_tokens": 739,
+      "latency_s": 4.62,
+      "valid": true,
+      "invented_ids": []
+    },
+    "hybrid_llm@gptoss": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:41-44",
+        "orders/repository.py:29-32",
+        "orders/repository.py:25-26"
+      ],
+      "prompt_tokens": 1479,
+      "completion_tokens": 455,
+      "latency_s": 12.23,
+      "valid": true,
+      "invented_ids": []
+    },
+    "rag_llm@gptoss": {
+      "rank": null,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:25-26",
+        "inventory/store.py:16-18",
+        "common/telemetry.py:62-81"
+      ],
+      "prompt_tokens": 1343,
+      "completion_tokens": 509,
+      "latency_s": 1.88,
+      "valid": true,
+      "invented_ids": []
+    }
+  },
+  "exceptions_in_packet": 0
+}

@@ -1,0 +1,7 @@
+"""Payment gateway settings."""
+
+GATEWAY_TIMEOUT_S = 0.05
+GATEWAY_SLOW_CALL_S = 0.4
+GATEWAY_SLOW_CALL_RATE = 0.15
+MAX_RETRIES = 2
+CURRENCY = "EUR"

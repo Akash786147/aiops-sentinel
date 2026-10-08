@@ -1,5 +1,8 @@
 # AIOps Sentinel — Codebase Guide
 
+> **Superseded (v0).** Covers `app/`, `services/`, `microservices/` only. For the v1 pipeline
+> (`sentinel/`, `shared_server/`, `benchmark/`) see [PROJECT_GUIDE.md](PROJECT_GUIDE.md).
+
 This guide explains how the codebase works, where to make changes, and how one request moves through the system.
 
 ## What this project does

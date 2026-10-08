@@ -1,5 +1,7 @@
 # Hands-on exercises — implementation evidence
 
+> **Superseded (v0).** Weekly exercise evidence for the first prototype. See [PROJECT_GUIDE.md](PROJECT_GUIDE.md).
+
 This is one progressively extended application: **AIOps Sentinel**.
 
 | Exercise | Required concept | Implementation / demonstration |

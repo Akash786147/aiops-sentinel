@@ -1,0 +1,25 @@
+{
+  "scenario": "H03",
+  "seed": 2,
+  "fault_class": "capacity",
+  "expected_action": "capacity_scale",
+  "truth": {
+    "service": null,
+    "file": null,
+    "start_line": null,
+    "end_line": null,
+    "fault_commit_position": null
+  },
+  "deployment": [
+    "Document order summary route",
+    "Keep more request samples",
+    "Describe the views endpoint"
+  ],
+  "detection": {
+    "robust": [],
+    "threshold": []
+  },
+  "action": "none",
+  "confidence": null,
+  "tests": {}
+}

@@ -1,0 +1,26 @@
+{
+  "scenario": "F09",
+  "seed": 0,
+  "fault_class": "latency",
+  "expected_action": "code_fix",
+  "truth": {
+    "service": "inventory",
+    "file": "inventory/store.py",
+    "start_line": 27,
+    "end_line": 28,
+    "fault_commit_position": 4
+  },
+  "deployment": [
+    "Add supported currencies",
+    "Name the customer tiers",
+    "Show more views by default",
+    "Write the reservation audit atomically with the stock update"
+  ],
+  "detection": {
+    "robust": [],
+    "threshold": []
+  },
+  "action": "none",
+  "confidence": null,
+  "tests": {}
+}

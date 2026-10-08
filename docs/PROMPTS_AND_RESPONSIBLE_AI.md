@@ -1,5 +1,8 @@
 # Prompt engineering, explainability, and limits
 
+> **Superseded (v0).** The v1 prompts are `SYSTEM` in `sentinel/tracing.py` and `sentinel/testgen.py`;
+> guardrails are described in [PROJECT_GUIDE.md](PROJECT_GUIDE.md).
+
 ## Production diagnosis prompt
 
 The exact controlled prompt is constructed in `services/llm.py`. Its important constraints are:

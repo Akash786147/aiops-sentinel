@@ -45,7 +45,7 @@ class RepositoryIndex:
         ignored = {".git", ".venv", "__pycache__", "data", ".pytest_cache", ".chromadb"}
         collected: list[Chunk] = []
         for path in self.root.rglob("*"):
-            if not path.is_file() or path.suffix not in ALLOWED or any(part in ignored for part in path.parts):
+            if not path.is_file() or path.suffix not in ALLOWED or any(part in ignored for part in path.relative_to(self.root).parts):
                 continue
             lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
             for start in range(0, len(lines), 36):

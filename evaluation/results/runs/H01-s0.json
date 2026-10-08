@@ -1,0 +1,26 @@
+{
+  "scenario": "H01",
+  "seed": 0,
+  "fault_class": "none",
+  "expected_action": "none",
+  "truth": {
+    "service": null,
+    "file": null,
+    "start_line": null,
+    "end_line": null,
+    "fault_commit_position": null
+  },
+  "deployment": [
+    "Clarify connection cost",
+    "Explain high-value limit",
+    "Show more views by default",
+    "Document refund API"
+  ],
+  "detection": {
+    "robust": [],
+    "threshold": []
+  },
+  "action": "none",
+  "confidence": null,
+  "tests": {}
+}

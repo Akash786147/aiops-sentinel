@@ -1,0 +1,241 @@
+{
+  "scenario": "F08",
+  "seed": 2,
+  "fault_class": "cpu",
+  "expected_action": "code_fix",
+  "truth": {
+    "service": "orders",
+    "file": "orders/repository.py",
+    "start_line": 61,
+    "end_line": 62,
+    "fault_commit_position": 4
+  },
+  "deployment": [
+    "Add supported currencies",
+    "Note finance sign-off on gold discount",
+    "Document restock",
+    "Include export size in the dashboard summary"
+  ],
+  "detection": {
+    "robust": [
+      {
+        "service": "orders",
+        "symptoms": [
+          "latency"
+        ],
+        "severity": 79.3,
+        "signals": [
+          "latency on GET /orders/summary: 6.5 -> 107.37 (z=79.3, 20 buckets)",
+          "latency on POST /quote: 3.98 -> 29.84 (z=29.0, 17 buckets)",
+          "latency on GET /orders: 9.41 -> 32.31 (z=23.5, 18 buckets)",
+          "latency on GET /orders/{order_id}: 6.34 -> 34.52 (z=19.4, 20 buckets)"
+        ]
+      }
+    ],
+    "threshold": [
+      {
+        "service": "orders",
+        "symptoms": [
+          "cpu"
+        ]
+      }
+    ]
+  },
+  "action": "code_fix",
+  "confidence": 0.92,
+  "tests": {
+    "template": {
+      "code": "\"\"\"Sentinel-generated confirming test for INC-a0fc357e (orders).\n\nHypothesis: The regression is most likely in `summarize()`: the deployed change added `size = sum(len(export_snapshot()) for _ in range(60))`, turning `/orders/summary` into a repeated export-snapshot loop that can materially increase CPU/latency. The other repository helpers are plausible contributors to the broader latency increase, but they do not explain the sharp summary-route jump as well as `summarize()` does.\n\"\"\"\nimport statistics\nimport time\nimport tracemalloc\n\nfrom fastapi.testclient import TestClient\n\nfrom orders.app import app\n\nclient = TestClient(app)\n\n\ndef _call(method, url, body):\n    started = time.perf_counter()\n    response = client.request(method, url, content=body or None, headers={\"content-type\": \"application/json\"})\n    return response, (time.perf_counter() - started) * 1000\n\n\nREQUEST = ('GET', '/orders/summary', '')\nBUDGET_P50_MS = 13.3  # pre-incident p50 3.3 ms, with margin\nBUDGET_P95_MS = 26.3  # pre-incident p95 6.29 ms, with margin\n\n\ndef test_incident_request_stays_within_latency_budget():\n    _call(*REQUEST)  # warm-up\n    timings = sorted(_call(*REQUEST)[1] for _ in range(20))\n    assert statistics.median(timings) <= BUDGET_P50_MS, timings\n    assert timings[18] <= BUDGET_P95_MS, timings\n",
+      "guard": [],
+      "faulty": {
+        "outcome": "assertion_failed",
+        "exit_code": 1,
+        "detail": "AssertionError: [31.889599980786443, 32.988900027703494, 33.825599995907396, 34.24040001118556, 34.39670003717765, 34.7063000081107, ...]\nassert 35.84309999132529 <= 13.3\n +  where 35.84309999132529 = <function median at 0x000001C3D4CB1120>([31.889599980786443, 32.988900027703494, 33.825599995907396, 34.24040001118556, 34.39670003717765, 34.7063000081107, ...])\n +    where <function median at 0x000001C3D4CB1120> = statistics.median",
+        "output_tail": "F                                                                        [100%]\n================================== FAILURES ===================================\n______________ test_incident_request_stays_within_latency_budget ______________\n\n    def test_incident_request_stays_within_latency_budget():\n        _call(*REQUEST)  # warm-up\n        timings = sorted(_call(*REQUEST)[1] for _ in range(20))\n>       assert statistics.median(timings) <= BUDGET_P50_MS, timings\nE       AssertionError: [31.889599980786443, 32.988900027703494, 33.825599995907396, 34.24040001118556, 34.39670003717765, 34.7063000081107, ...]\nE       assert 35.84309999132529 <= 13.3\nE        +  where 35.84309999132529 = <function median at 0x000001C3D4CB1120>([31.889599980786443, 32.988900027703494, 33.825599995907396, 34.24040001118556, 34.39670003717765, 34.7063000081107, ...])\nE        +    where <function median at 0x000001C3D4CB1120> = statistics.median\n\nsentinel_generated\\test_incident.py:30: AssertionError\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-pxe06xp5\\ws\\report.xml -\n=========================== short test summary info ===========================\nFAILED sentinel_generated/test_incident.py::test_incident_request_stays_within_latency_budget\n1 failed in 1.76s\n"
+      },
+      "fixed": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": ".                                                                        [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-dn5lrbxc\\ws\\report.xml -\n1 passed in 0.63s\n"
+      },
+      "confirming": true
+    },
+    "llm": {
+      "code": "import statistics\nimport time\n\nfrom fastapi.testclient import TestClient\n\nfrom orders.app import app\n\n\ndef test_orders_summary_latency_stays_within_healthy_budget():\n    client = TestClient(app)\n\n    # Baseline from the incident packet.\n    baseline_p50_ms = 3.3\n    baseline_p95_ms = 6.29\n    median_budget_ms = max(3 * baseline_p50_ms, baseline_p50_ms + 10)\n    p95_budget_ms = max(2 * baseline_p95_ms, baseline_p95_ms + 20)\n\n    # Small warmup so the measured calls reflect steady-state behavior.\n    for _ in range(3):\n        warmup_response = client.get(\"/orders/summary\")\n        assert (\n            warmup_response.status_code == 200\n        ), f\"GET /orders/summary returned {warmup_response.status_code}, expected 200\"\n\n    durations_ms = []\n    for _ in range(20):\n        start = time.perf_counter()\n        response = client.get(\"/orders/summary\")\n        elapsed_ms = (time.perf_counter() - start) * 1000.0\n\n        assert (\n            response.status_code == 200\n        ), f\"GET /orders/summary returned {response.status_code}, expected 200\"\n\n        durations_ms.append(elapsed_ms)\n\n    median_ms = statistics.median(durations_ms)\n    sorted_durations = sorted(durations_ms)\n    p95_index = int(0.95 * len(sorted_durations)) - 1\n    p95_ms = sorted_durations[p95_index]\n\n    assert (\n        median_ms <= median_budget_ms\n    ), f\"GET /orders/summary median latency {median_ms:.2f} ms exceeded healthy budget {median_budget_ms:.2f} ms\"\n    assert (\n        p95_ms <= p95_budget_ms\n    ), f\"GET /orders/summary p95 latency {p95_ms:.2f} ms exceeded healthy budget {p95_budget_ms:.2f} ms\"\n",
+      "guard": [],
+      "faulty": {
+        "outcome": "assertion_failed",
+        "exit_code": 1,
+        "detail": "AssertionError: GET /orders/summary median latency 33.12 ms exceeded healthy budget 13.30 ms\nassert 33.11634997953661 <= 13.3",
+        "output_tail": "e = client.get(\"/orders/summary\")\n            assert (\n                warmup_response.status_code == 200\n            ), f\"GET /orders/summary returned {warmup_response.status_code}, expected 200\"\n    \n        durations_ms = []\n        for _ in range(20):\n            start = time.perf_counter()\n            response = client.get(\"/orders/summary\")\n            elapsed_ms = (time.perf_counter() - start) * 1000.0\n    \n            assert (\n                response.status_code == 200\n            ), f\"GET /orders/summary returned {response.status_code}, expected 200\"\n    \n            durations_ms.append(elapsed_ms)\n    \n        median_ms = statistics.median(durations_ms)\n        sorted_durations = sorted(durations_ms)\n        p95_index = int(0.95 * len(sorted_durations)) - 1\n        p95_ms = sorted_durations[p95_index]\n    \n>       assert (\n            median_ms <= median_budget_ms\n        ), f\"GET /orders/summary median latency {median_ms:.2f} ms exceeded healthy budget {median_budget_ms:.2f} ms\"\nE       AssertionError: GET /orders/summary median latency 33.12 ms exceeded healthy budget 13.30 ms\nE       assert 33.11634997953661 <= 13.3\n\nsentinel_generated\\test_incident.py:42: AssertionError\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-1es0uftl\\ws\\report.xml -\n=========================== short test summary info ===========================\nFAILED sentinel_generated/test_incident.py::test_orders_summary_latency_stays_within_healthy_budget\n1 failed in 1.55s\n"
+      },
+      "fixed": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": ".                                                                        [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-x3qrypsc\\ws\\report.xml -\n1 passed in 0.69s\n"
+      },
+      "confirming": true
+    }
+  },
+  "llm_action": "code_fix",
+  "localization": {
+    "legacy_v0": {
+      "rank": 3,
+      "file_rank": 3,
+      "top": [
+        "orders\\app.py:1",
+        "inventory\\app.py:1",
+        "orders\\repository.py:37"
+      ]
+    },
+    "recent_changes": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:58-62",
+        "inventory/store.py:32-36",
+        "orders/pricing.py:1-4"
+      ]
+    },
+    "bm25": {
+      "rank": 4,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:48-55",
+        "orders/app.py:29-34",
+        "orders/repository.py:25-26"
+      ]
+    },
+    "dense": {
+      "rank": 3,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:25-26",
+        "orders/repository.py:1-22",
+        "orders/repository.py:58-62"
+      ]
+    },
+    "hybrid": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:58-62",
+        "orders/repository.py:48-55",
+        "orders/repository.py:41-45"
+      ]
+    },
+    "hybrid_unscoped": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:58-62",
+        "orders/repository.py:48-55",
+        "orders/repository.py:41-45"
+      ]
+    },
+    "no_trace": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:58-62",
+        "orders/repository.py:48-55",
+        "orders/repository.py:41-45"
+      ]
+    },
+    "no_call_graph": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:58-62",
+        "orders/repository.py:25-26",
+        "orders/repository.py:1-22"
+      ]
+    },
+    "no_change": {
+      "rank": 2,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:48-55",
+        "orders/repository.py:58-62",
+        "orders/repository.py:41-45"
+      ]
+    },
+    "no_dense": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:58-62",
+        "orders/repository.py:48-55",
+        "orders/repository.py:41-45"
+      ]
+    },
+    "no_lexical": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:58-62",
+        "orders/repository.py:48-55",
+        "orders/repository.py:41-45"
+      ]
+    },
+    "hybrid_llm": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:58-62",
+        "orders/repository.py:41-45",
+        "orders/repository.py:48-55"
+      ],
+      "prompt_tokens": 1396,
+      "completion_tokens": 1589,
+      "latency_s": 12.0,
+      "valid": true,
+      "invented_ids": []
+    },
+    "rag_llm": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:58-62",
+        "orders/repository.py:25-26",
+        "orders/repository.py:1-22"
+      ],
+      "prompt_tokens": 1240,
+      "completion_tokens": 722,
+      "latency_s": 5.52,
+      "valid": true,
+      "invented_ids": []
+    },
+    "hybrid_llm@gptoss": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:58-62",
+        "orders/repository.py:41-45",
+        "orders/repository.py:48-55"
+      ],
+      "prompt_tokens": 1488,
+      "completion_tokens": 478,
+      "latency_s": 13.36,
+      "valid": true,
+      "invented_ids": []
+    },
+    "rag_llm@gptoss": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/repository.py:58-62",
+        "orders/repository.py:48-55",
+        "orders/repository.py:25-26"
+      ],
+      "prompt_tokens": 1332,
+      "completion_tokens": 624,
+      "latency_s": 11.59,
+      "valid": true,
+      "invented_ids": []
+    }
+  },
+  "exceptions_in_packet": 0
+}

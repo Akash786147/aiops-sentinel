@@ -1,0 +1,256 @@
+{
+  "scenario": "F10",
+  "seed": 0,
+  "fault_class": "errors",
+  "expected_action": "code_fix",
+  "truth": {
+    "service": "orders",
+    "file": "orders/pricing.py",
+    "start_line": 20,
+    "end_line": 20,
+    "fault_commit_position": 2
+  },
+  "deployment": [
+    "Document restock",
+    "Tidy average price helper",
+    "Keep more request samples",
+    "Document order summary route"
+  ],
+  "detection": {
+    "robust": [
+      {
+        "service": "orders",
+        "symptoms": [
+          "errors"
+        ],
+        "severity": 63.6,
+        "signals": [
+          "errors on POST /quote: 0 -> 0.17 (z=63.6, 20 buckets)",
+          "errors: 0 -> 0.04 (z=14.7, 15 buckets)"
+        ]
+      }
+    ],
+    "threshold": [
+      {
+        "service": "orders",
+        "symptoms": [
+          "errors"
+        ]
+      }
+    ]
+  },
+  "action": "code_fix",
+  "confidence": 1.0,
+  "tests": {
+    "template": {
+      "code": "\"\"\"Sentinel-generated confirming test for INC-bbff2c71 (orders).\n\nHypothesis: The POST /quote handler calls `average_item_price(request.items)`, which divides by `len(items)` without guarding against an empty cart. Requests like `{\"items\":[],\"tier\":\"standard\"}` therefore raise `ZeroDivisionError` and return 500s.\n\"\"\"\nimport statistics\nimport time\nimport tracemalloc\n\nfrom fastapi.testclient import TestClient\n\nfrom orders.app import app\n\nclient = TestClient(app)\n\n\ndef _call(method, url, body):\n    started = time.perf_counter()\n    response = client.request(method, url, content=body or None, headers={\"content-type\": \"application/json\"})\n    return response, (time.perf_counter() - started) * 1000\n\n\nFAILING_REQUESTS = [('POST', '/quote', '{\"items\":[],\"tier\":\"standard\"}'), ('POST', '/quote', '{\"items\":[],\"tier\":\"gold\"}')]\n\n\ndef test_incident_requests_do_not_fail():\n    for method, url, body in FAILING_REQUESTS:\n        response, _ = _call(method, url, body)\n        assert response.status_code < 500, (url, body, response.status_code)\n",
+      "guard": [],
+      "faulty": {
+        "outcome": "assertion_failed",
+        "exit_code": 1,
+        "detail": "AssertionError: ('/quote', '{\"items\":[],\"tier\":\"standard\"}', 500)\nassert 500 < 500\n +  where 500 = <Response [500 Internal Server Error]>.status_code",
+        "output_tail": "F                                                                        [100%]\n================================== FAILURES ===================================\n_____________________ test_incident_requests_do_not_fail ______________________\n\n    def test_incident_requests_do_not_fail():\n        for method, url, body in FAILING_REQUESTS:\n            response, _ = _call(method, url, body)\n>           assert response.status_code < 500, (url, body, response.status_code)\nE           AssertionError: ('/quote', '{\"items\":[],\"tier\":\"standard\"}', 500)\nE           assert 500 < 500\nE            +  where 500 = <Response [500 Internal Server Error]>.status_code\n\nsentinel_generated\\test_incident.py:28: AssertionError\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-p70msdzo\\ws\\report.xml -\n=========================== short test summary info ===========================\nFAILED sentinel_generated/test_incident.py::test_incident_requests_do_not_fail\n1 failed in 0.81s\n"
+      },
+      "fixed": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": ".                                                                        [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-6d_dnet1\\ws\\report.xml -\n1 passed in 0.87s\n"
+      },
+      "confirming": true
+    },
+    "llm": {
+      "code": "import pytest\nfrom fastapi.testclient import TestClient\n\nfrom orders.app import app\n\n\ndef test_post_quote_empty_items_does_not_return_5xx():\n    client = TestClient(app)\n\n    response = client.post(\"/quote\", json={\"items\": [], \"tier\": \"standard\"})\n\n    assert response.status_code < 500, (\n        \"POST /quote with an empty items list should not raise a server error; \"\n        f\"got HTTP {response.status_code} instead\"\n    )\n",
+      "guard": [],
+      "faulty": {
+        "outcome": "assertion_failed",
+        "exit_code": 1,
+        "detail": "AssertionError: POST /quote with an empty items list should not raise a server error; got HTTP 500 instead\nassert 500 < 500\n +  where 500 = <Response [500 Internal Server Error]>.status_code",
+        "output_tail": "F                                                                        [100%]\n================================== FAILURES ===================================\n_______________ test_post_quote_empty_items_does_not_return_5xx _______________\n\n    def test_post_quote_empty_items_does_not_return_5xx():\n        client = TestClient(app)\n    \n        response = client.post(\"/quote\", json={\"items\": [], \"tier\": \"standard\"})\n    \n>       assert response.status_code < 500, (\n            \"POST /quote with an empty items list should not raise a server error; \"\n            f\"got HTTP {response.status_code} instead\"\n        )\nE       AssertionError: POST /quote with an empty items list should not raise a server error; got HTTP 500 instead\nE       assert 500 < 500\nE        +  where 500 = <Response [500 Internal Server Error]>.status_code\n\nsentinel_generated\\test_incident.py:12: AssertionError\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-u3hdz92y\\ws\\report.xml -\n=========================== short test summary info ===========================\nFAILED sentinel_generated/test_incident.py::test_post_quote_empty_items_does_not_return_5xx\n1 failed in 0.83s\n"
+      },
+      "fixed": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": ".                                                                        [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-_28hetn2\\ws\\report.xml -\n1 passed in 0.65s\n"
+      },
+      "confirming": true
+    },
+    "llm@gptoss": {
+      "code": "import json\nimport time\nimport statistics\nimport tracemalloc\n\nimport pytest\nfrom fastapi.testclient import TestClient\n\n# Import the FastAPI app from the service\nfrom orders.app import app\n\nclient = TestClient(app)\n\n\ndef _post_quote(payload: dict) -> tuple[int, dict, float]:\n    \"\"\"\n    Send a POST /quote request and return (status_code, json_body, latency_ms).\n    \"\"\"\n    start = time.perf_counter()\n    response = client.post(\"/quote\", json=payload)\n    latency_ms = (time.perf_counter() - start) * 1000\n    try:\n        body = response.json()\n    except json.JSONDecodeError:\n        body = {}\n    return response.status_code, body, latency_ms\n\n\n@pytest.mark.parametrize(\"tier\", [\"standard\", \"gold\"])\ndef test_quote_empty_cart_is_healthy(tier: str):\n    \"\"\"\n    Healthy behaviour for an empty cart:\n    * HTTP 200 (no internal error)\n    * No average_item_price field or it is null (empty cart has no average)\n    * Latency within generous budget (median \u2264 11\u202fms, p95 \u2264 23.7\u202fms)\n    * Memory growth \u2264 8\u202fMiB\n    \"\"\"\n    payload = {\"items\": [], \"tier\": tier}\n    latencies = []\n    statuses = []\n    avg_prices = []\n\n    # Start memory tracking\n    tracemalloc.start()\n    snapshot_before = tracemalloc.take_snapshot()\n\n    # Perform a modest number of calls to get stable statistics\n    for _ in range(20):\n        status, body, latency = _post_quote(payload)\n        statuses.append(status)\n        latencies.append(latency)\n        avg_prices.append(body.get(\"average_item_price\", None))\n\n    # Stop memory tracking\n    snapshot_after = tracemalloc.take_snapshot()\n    tracemalloc.stop()\n    mem_diff = sum(\n        stat.size_diff for stat in snapshot_after.compare_to(snapshot_before, \"lineno\")\n    )\n\n    # ---- Assertions ----\n\n    # 1. All responses must be successful (200)\n    for i, status in enumerate(statuses):\n        assert status == 200, f\"Expected 200 for empty cart (call {i+1}), got {status}\"\n\n    # 2. average_item_price must be absent or null for empty carts\n    for i, val in enumerate(avg_prices):\n        assert val is None, (\n            f\"Expected no average_item_price (or null) for empty cart (call {i+1}), \"\n            f\"got {val!r}\"\n        )\n\n    # 3. Latency budgets\n    median_latency = statistics.median(latencies)\n    p95_latency = statistics.quantiles(latencies, n=100)[94]  # 95th percentile (0\u2011based)\n\n    # Baseline values from incident packet\n    baseline_p50 = 1.0   # ms\n    baseline_p95 = 3.7   # ms\n\n    median_budget = max(3 * baseline_p50, baseline_p50 + 10)   # \u2264 11\u202fms\n    p95_budget = max(2 * baseline_p95, baseline_p95 + 20)     # \u2264 23.7\u202fms\n\n    assert median_latency <= median_budget, (\n        f\"Median latency {median_latency:.2f}\u202fms exceeds budget of {median_budget:.2f}\u202fms\"\n    )\n    assert p95_latency <= p95_budget, (\n        f\"P95 latency {p95_latency:.2f}\u202fms exceeds budget of {p95_budget:.2f}\u202fms\"\n    )\n\n    # 4. Memory growth must stay within 8\u202fMiB\n    max_allowed_bytes = 8 * 1024 * 1024\n    assert mem_diff <= max_allowed_bytes, (\n        f\"Memory grew by {mem_diff / (1024*1024):.2f}\u202fMiB, exceeding the 8\u202fMiB limit\"\n    )\n",
+      "guard": [],
+      "faulty": {
+        "outcome": "assertion_failed",
+        "exit_code": 1,
+        "detail": "AssertionError: Expected 200 for empty cart (call 1), got 500\nassert 500 == 200; AssertionError: Expected 200 for empty cart (call 1), got 500\nassert 500 == 200",
+        "output_tail": "tier\": tier}\n        latencies = []\n        statuses = []\n        avg_prices = []\n    \n        # Start memory tracking\n        tracemalloc.start()\n        snapshot_before = tracemalloc.take_snapshot()\n    \n        # Perform a modest number of calls to get stable statistics\n        for _ in range(20):\n            status, body, latency = _post_quote(payload)\n            statuses.append(status)\n            latencies.append(latency)\n            avg_prices.append(body.get(\"average_item_price\", None))\n    \n        # Stop memory tracking\n        snapshot_after = tracemalloc.take_snapshot()\n        tracemalloc.stop()\n        mem_diff = sum(\n            stat.size_diff for stat in snapshot_after.compare_to(snapshot_before, \"lineno\")\n        )\n    \n        # ---- Assertions ----\n    \n        # 1. All responses must be successful (200)\n        for i, status in enumerate(statuses):\n>           assert status == 200, f\"Expected 200 for empty cart (call {i+1}), got {status}\"\nE           AssertionError: Expected 200 for empty cart (call 1), got 500\nE           assert 500 == 200\n\nsentinel_generated\\test_incident.py:65: AssertionError\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-fjnjp0lh\\ws\\report.xml -\n=========================== short test summary info ===========================\nFAILED sentinel_generated/test_incident.py::test_quote_empty_cart_is_healthy[standard]\nFAILED sentinel_generated/test_incident.py::test_quote_empty_cart_is_healthy[gold]\n2 failed in 2.07s\n"
+      },
+      "fixed": {
+        "outcome": "assertion_failed",
+        "exit_code": 1,
+        "detail": "AssertionError: Expected no average_item_price (or null) for empty cart (call 1), got 0.0\nassert 0.0 is None; AssertionError: Expected no average_item_price (or null) for empty cart (call 1), got 0.0\nassert 0.0 is None",
+        "output_tail": "s, body, latency = _post_quote(payload)\n            statuses.append(status)\n            latencies.append(latency)\n            avg_prices.append(body.get(\"average_item_price\", None))\n    \n        # Stop memory tracking\n        snapshot_after = tracemalloc.take_snapshot()\n        tracemalloc.stop()\n        mem_diff = sum(\n            stat.size_diff for stat in snapshot_after.compare_to(snapshot_before, \"lineno\")\n        )\n    \n        # ---- Assertions ----\n    \n        # 1. All responses must be successful (200)\n        for i, status in enumerate(statuses):\n            assert status == 200, f\"Expected 200 for empty cart (call {i+1}), got {status}\"\n    \n        # 2. average_item_price must be absent or null for empty carts\n        for i, val in enumerate(avg_prices):\n>           assert val is None, (\n                f\"Expected no average_item_price (or null) for empty cart (call {i+1}), \"\n                f\"got {val!r}\"\n            )\nE           AssertionError: Expected no average_item_price (or null) for empty cart (call 1), got 0.0\nE           assert 0.0 is None\n\nsentinel_generated\\test_incident.py:69: AssertionError\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-p5b5omqv\\ws\\report.xml -\n=========================== short test summary info ===========================\nFAILED sentinel_generated/test_incident.py::test_quote_empty_cart_is_healthy[standard]\nFAILED sentinel_generated/test_incident.py::test_quote_empty_cart_is_healthy[gold]\n2 failed in 1.12s\n"
+      },
+      "confirming": false
+    }
+  },
+  "llm_action": "code_fix",
+  "localization": {
+    "legacy_v0": {
+      "rank": 5,
+      "file_rank": 5,
+      "top": [
+        "payments\\fraud.py:1",
+        "inventory\\app.py:1",
+        "services.yaml:1"
+      ]
+    },
+    "recent_changes": {
+      "rank": 3,
+      "file_rank": 3,
+      "top": [
+        "orders/app.py:24-27",
+        "common/telemetry.py:1-23",
+        "orders/pricing.py:18-20"
+      ]
+    },
+    "bm25": {
+      "rank": null,
+      "file_rank": 10,
+      "top": [
+        "payments/gateway.py:54-65",
+        "common/telemetry.py:83-104",
+        "common/telemetry.py:38-60"
+      ]
+    },
+    "dense": {
+      "rank": null,
+      "file_rank": 7,
+      "top": [
+        "orders/app.py:14-16",
+        "inventory/app.py:14-16",
+        "inventory/app.py:28-32"
+      ]
+    },
+    "hybrid": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/pricing.py:18-20",
+        "orders/app.py:38-43",
+        "common/telemetry.py:38-60"
+      ]
+    },
+    "hybrid_unscoped": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/pricing.py:18-20",
+        "orders/app.py:38-43",
+        "common/telemetry.py:38-60"
+      ]
+    },
+    "no_trace": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/pricing.py:18-20",
+        "common/telemetry.py:83-104",
+        "orders/app.py:38-43"
+      ]
+    },
+    "no_call_graph": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/pricing.py:18-20",
+        "common/telemetry.py:38-60",
+        "orders/app.py:38-43"
+      ]
+    },
+    "no_change": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/pricing.py:18-20",
+        "orders/app.py:38-43",
+        "common/telemetry.py:38-60"
+      ]
+    },
+    "no_dense": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/pricing.py:18-20",
+        "orders/app.py:38-43",
+        "common/telemetry.py:38-60"
+      ]
+    },
+    "no_lexical": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/pricing.py:18-20",
+        "orders/app.py:38-43",
+        "common/telemetry.py:38-60"
+      ]
+    },
+    "hybrid_llm": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/pricing.py:18-20",
+        "orders/app.py:38-43",
+        "orders/pricing.py:11-15"
+      ],
+      "prompt_tokens": 1692,
+      "completion_tokens": 336,
+      "latency_s": 3.67,
+      "valid": true,
+      "invented_ids": []
+    },
+    "rag_llm": {
+      "rank": null,
+      "file_rank": 2,
+      "top": [
+        "orders/app.py:14-16",
+        "orders/pricing.py:7-8",
+        "common/telemetry.py:38-60"
+      ],
+      "prompt_tokens": 1393,
+      "completion_tokens": 732,
+      "latency_s": 4.23,
+      "valid": true,
+      "invented_ids": []
+    },
+    "hybrid_llm@gptoss": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "orders/pricing.py:18-20",
+        "orders/app.py:38-43",
+        "orders/pricing.py:11-15"
+      ],
+      "prompt_tokens": 1784,
+      "completion_tokens": 313,
+      "latency_s": 2.24,
+      "valid": true,
+      "invented_ids": []
+    },
+    "rag_llm@gptoss": {
+      "rank": null,
+      "file_rank": 2,
+      "top": [
+        "orders/app.py:14-16",
+        "orders/pricing.py:7-8",
+        "common/telemetry.py:38-60"
+      ],
+      "prompt_tokens": 1485,
+      "completion_tokens": 638,
+      "latency_s": 15.05,
+      "valid": true,
+      "invented_ids": []
+    }
+  },
+  "exceptions_in_packet": 1
+}

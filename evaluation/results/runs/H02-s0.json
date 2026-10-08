@@ -1,0 +1,63 @@
+{
+  "scenario": "H02",
+  "seed": 0,
+  "fault_class": "none",
+  "expected_action": "none",
+  "truth": {
+    "service": null,
+    "file": null,
+    "start_line": null,
+    "end_line": null,
+    "fault_commit_position": null
+  },
+  "deployment": [
+    "Rename local variable in reserve",
+    "Describe the views endpoint",
+    "Name the customer tiers",
+    "Explain high-value limit"
+  ],
+  "detection": {
+    "robust": [
+      {
+        "service": "payments",
+        "symptoms": [
+          "latency"
+        ],
+        "severity": 18.6,
+        "signals": [
+          "latency on POST /pay: 55.11 -> 67.83 (z=18.6, 8 buckets)"
+        ]
+      }
+    ],
+    "threshold": []
+  },
+  "action": "investigate",
+  "confidence": 0.43,
+  "tests": {
+    "template": {
+      "code": "\"\"\"Sentinel-generated confirming test for INC-75425e5d (payments).\n\nHypothesis: POST /pay is spending most of its time in the payment gateway timeout/retry path: timed-out upstream calls are retried up to 3 times, and each slow attempt burns the full 50ms timeout before failing. The observed ~150ms slow requests line up with repeated gateway timeouts, while fraud and telemetry code do not explain the latency pattern.\n\"\"\"\nimport statistics\nimport time\nimport tracemalloc\n\nfrom fastapi.testclient import TestClient\n\nfrom payments.app import app\n\nclient = TestClient(app)\n\n\ndef _call(method, url, body):\n    started = time.perf_counter()\n    response = client.request(method, url, content=body or None, headers={\"content-type\": \"application/json\"})\n    return response, (time.perf_counter() - started) * 1000\n\n\nREQUEST = ('POST', '/pay', '{\"email\":\"user198@shop.example\",\"amount\":195.96}')\nBUDGET_P50_MS = 14.3  # pre-incident p50 4.27 ms, with margin\nBUDGET_P95_MS = 110.4  # pre-incident p95 55.22 ms, with margin\n\n\ndef test_incident_request_stays_within_latency_budget():\n    _call(*REQUEST)  # warm-up\n    timings = sorted(_call(*REQUEST)[1] for _ in range(20))\n    assert statistics.median(timings) <= BUDGET_P50_MS, timings\n    assert timings[18] <= BUDGET_P95_MS, timings\n",
+      "guard": [],
+      "faulty": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": ".                                                                        [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-6ymmsps1\\ws\\report.xml -\n1 passed in 1.61s\n"
+      },
+      "fixed": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": ".                                                                        [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-sxyjgy75\\ws\\report.xml -\n1 passed in 1.50s\n"
+      },
+      "confirming": false
+    },
+    "llm": {
+      "code": "",
+      "confirming": false,
+      "guard": [
+        "no test generated"
+      ]
+    }
+  },
+  "llm_action": "code_fix"
+}

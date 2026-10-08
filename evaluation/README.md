@@ -1,38 +1,29 @@
-# Week 4 evaluation pack
+# Evaluation
 
-`questions.json` is the fixed 25-question dataset. Use that exact dataset for every model and keep RAG settings, prompt, retrieval top-k, machine, and network conditions as consistent as possible.
+## v1 benchmark (current)
 
-## Run retrieval analysis now
-
-```bash
-. .venv/bin/activate
-python evaluation/run_evaluation.py --retrieval-only
-python evaluation/analyze_results.py evaluation/results/qwen2.5-coder_7b_retrieval_only.json --output evaluation/results/retrieval_summary.md
-```
-
-## Run a full model evaluation
+`benchmark.py` runs the shared-server incident benchmark: 12 injected faults + 3 controls, each
+recorded live with 3 seeds, scored against ground truth. The method is described in
+[docs/PROJECT_GUIDE.md](../docs/PROJECT_GUIDE.md) §7.
 
 ```bash
-python evaluation/run_evaluation.py --model qwen2.5-coder:7b
+python -m evaluation.benchmark record  --seeds 0 1 2          # live traffic, ~50 s per scenario
+python -m evaluation.benchmark analyze --seeds 0 1 2          # pipeline, baselines, ablations, tests (primary LLM)
+python -m evaluation.benchmark analyze-model --seeds 0 --provider groq --model openai/gpt-oss-120b --label gptoss          # localisation + tests
+python -m evaluation.benchmark analyze-model --seeds 1 2 --skip-tests --provider groq --model openai/gpt-oss-120b --label gptoss   # localisation only
+python -m evaluation.benchmark score                          # results/summary.json + results/summary.md
 ```
 
-For another model, use the same questions and conditions:
+| Output | Content |
+| --- | --- |
+| `results/summary.md` / `summary.json` | All metrics: detection, localisation (incl. ablations, held-out seeds, per LLM), tests, actions |
+| `results/runs/<scenario>-s<seed>.json` | Everything measured for one run, including generated test code and outcomes |
+| `results/audit/<scenario>-s<seed>.jsonl` | The pipeline's own audit trail for that run |
+| `data/bench/` (not committed) | Raw telemetry recordings and git workspaces |
+| `data/llm_cache/` (not committed) | Cached LLM answers keyed by prompt hash |
 
-```bash
-python evaluation/run_evaluation.py --model MODEL_NAME --ollama-url http://MODEL_HOST:11434
-```
+## v0 evaluation (superseded)
 
-## Metrics and scoring
-
-- **Retrieval precision@k:** relevant retrieved files ÷ retrieved files.
-- **Retrieval recall@k:** unique expected files retrieved ÷ expected files.
-- **Retrieval hit rate:** questions where at least one expected file was retrieved ÷ all questions.
-- **Latency:** wall-clock time from LLM request to completed response, in milliseconds.
-- **Estimated tokens:** whitespace-token estimate for input plus output; explicitly an approximation.
-- **Client memory delta:** Python evaluator RSS after request minus before request. This is not remote-server memory use.
-- **Correctness:** human reviewer gives 1 only when answer matches expected code behaviour.
-- **Relevance:** human reviewer gives 1–5 based on how directly it answers the task.
-- **Hallucination rate:** answers containing unsupported claims ÷ reviewed answers.
-- **Test-pass rate:** generated tests that execute and pass ÷ generated tests submitted for execution.
-
-Enter human quality scores in `score_template.csv`. Do not fabricate them: the purpose is quantitative, reviewable comparison.
+`run_evaluation.py`, `compare_retrievers.py`, `analyze_results.py`, `questions.json` and the older
+files in `results/` evaluated the v0 prototype with 25 questions about Sentinel's own code. They
+are kept for history; they have no fault ground truth and are not used in the v1 results.

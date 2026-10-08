@@ -1,5 +1,7 @@
 # AIOps Sentinel — 6-minute demonstration script
 
+> **Superseded (v0).** For the v1 demo run `python -m benchmark.demo F01` (see [PROJECT_GUIDE.md](PROJECT_GUIDE.md)).
+
 ## Start the application
 
 From the project root, open two terminals:

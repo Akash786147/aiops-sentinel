@@ -1,0 +1,256 @@
+{
+  "scenario": "F04",
+  "seed": 0,
+  "fault_class": "errors",
+  "expected_action": "code_fix",
+  "truth": {
+    "service": "inventory",
+    "file": "inventory/store.py",
+    "start_line": 24,
+    "end_line": 24,
+    "fault_commit_position": 4
+  },
+  "deployment": [
+    "Describe the views endpoint",
+    "Name the customer tiers",
+    "Keep more request samples",
+    "Simplify stock lookup in reserve"
+  ],
+  "detection": {
+    "robust": [
+      {
+        "service": "inventory",
+        "symptoms": [
+          "errors"
+        ],
+        "severity": 38.3,
+        "signals": [
+          "errors on POST /reserve: 0 -> 0.13 (z=38.3, 19 buckets)",
+          "errors: 0 -> 0.06 (z=18.7, 17 buckets)"
+        ]
+      }
+    ],
+    "threshold": [
+      {
+        "service": "inventory",
+        "symptoms": [
+          "errors"
+        ]
+      }
+    ]
+  },
+  "action": "code_fix",
+  "confidence": 1.0,
+  "tests": {
+    "template": {
+      "code": "\"\"\"Sentinel-generated confirming test for INC-920d0693 (inventory).\n\nHypothesis: `POST /reserve` is failing because `inventory/store.py:reserve` now does a direct `STOCK[sku]` lookup, so unknown SKUs like `sku-42` raise `KeyError` instead of being refused as the docstring says. The deployment commit \"Simplify stock lookup in reserve\" matches the regression and explains the error spike mechanically.\n\"\"\"\nimport statistics\nimport time\nimport tracemalloc\n\nfrom fastapi.testclient import TestClient\n\nfrom inventory.app import app\n\nclient = TestClient(app)\n\n\ndef _call(method, url, body):\n    started = time.perf_counter()\n    response = client.request(method, url, content=body or None, headers={\"content-type\": \"application/json\"})\n    return response, (time.perf_counter() - started) * 1000\n\n\nFAILING_REQUESTS = [('POST', '/reserve', '{\"sku\":\"sku-42\",\"qty\":1}'), ('POST', '/reserve', '{\"sku\":\"sku-41\",\"qty\":1}')]\n\n\ndef test_incident_requests_do_not_fail():\n    for method, url, body in FAILING_REQUESTS:\n        response, _ = _call(method, url, body)\n        assert response.status_code < 500, (url, body, response.status_code)\n",
+      "guard": [],
+      "faulty": {
+        "outcome": "assertion_failed",
+        "exit_code": 1,
+        "detail": "AssertionError: ('/reserve', '{\"sku\":\"sku-42\",\"qty\":1}', 500)\nassert 500 < 500\n +  where 500 = <Response [500 Internal Server Error]>.status_code",
+        "output_tail": "F                                                                        [100%]\n================================== FAILURES ===================================\n_____________________ test_incident_requests_do_not_fail ______________________\n\n    def test_incident_requests_do_not_fail():\n        for method, url, body in FAILING_REQUESTS:\n            response, _ = _call(method, url, body)\n>           assert response.status_code < 500, (url, body, response.status_code)\nE           AssertionError: ('/reserve', '{\"sku\":\"sku-42\",\"qty\":1}', 500)\nE           assert 500 < 500\nE            +  where 500 = <Response [500 Internal Server Error]>.status_code\n\nsentinel_generated\\test_incident.py:28: AssertionError\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-yvqb2009\\ws\\report.xml -\n=========================== short test summary info ===========================\nFAILED sentinel_generated/test_incident.py::test_incident_requests_do_not_fail\n1 failed in 0.94s\n"
+      },
+      "fixed": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": ".                                                                        [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-f2zwma8g\\ws\\report.xml -\n1 passed in 0.80s\n"
+      },
+      "confirming": true
+    },
+    "llm": {
+      "code": "from fastapi.testclient import TestClient\n\nfrom inventory.app import app\n\n\ndef test_post_reserve_refuses_unknown_sku_without_5xx():\n    client = TestClient(app)\n\n    response = client.post(\"/reserve\", json={\"sku\": \"sku-42\", \"qty\": 1})\n\n    assert response.status_code == 409, (\n        \"POST /reserve should refuse unknown SKUs with 409, \"\n        f\"but got {response.status_code}: {response.text}\"\n    )\n",
+      "guard": [],
+      "faulty": {
+        "outcome": "assertion_failed",
+        "exit_code": 1,
+        "detail": "AssertionError: POST /reserve should refuse unknown SKUs with 409, but got 500: {\"detail\":\"internal error\"}\nassert 500 == 409\n +  where 500 = <Response [500 Internal Server Error]>.status_code",
+        "output_tail": "F                                                                        [100%]\n================================== FAILURES ===================================\n______________ test_post_reserve_refuses_unknown_sku_without_5xx ______________\n\n    def test_post_reserve_refuses_unknown_sku_without_5xx():\n        client = TestClient(app)\n    \n        response = client.post(\"/reserve\", json={\"sku\": \"sku-42\", \"qty\": 1})\n    \n>       assert response.status_code == 409, (\n            \"POST /reserve should refuse unknown SKUs with 409, \"\n            f\"but got {response.status_code}: {response.text}\"\n        )\nE       AssertionError: POST /reserve should refuse unknown SKUs with 409, but got 500: {\"detail\":\"internal error\"}\nE       assert 500 == 409\nE        +  where 500 = <Response [500 Internal Server Error]>.status_code\n\nsentinel_generated\\test_incident.py:11: AssertionError\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-iyn3g7t9\\ws\\report.xml -\n=========================== short test summary info ===========================\nFAILED sentinel_generated/test_incident.py::test_post_reserve_refuses_unknown_sku_without_5xx\n1 failed in 1.31s\n"
+      },
+      "fixed": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": ".                                                                        [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-f5j13_g4\\ws\\report.xml -\n1 passed in 0.66s\n"
+      },
+      "confirming": true
+    },
+    "llm@gptoss": {
+      "code": "import json\nimport time\nimport statistics\nimport tracemalloc\n\nimport pytest\nfrom fastapi.testclient import TestClient\n\nfrom inventory.app import app\n\n# ----------------------------------------------------------------------\n# Helper to compute the p95 percentile\ndef percentile(data, perc):\n    \"\"\"Return the perc-th percentile of a list of numbers.\"\"\"\n    if not data:\n        return None\n    k = (len(data) - 1) * perc / 100\n    f = int(k)\n    c = min(f + 1, len(data) - 1)\n    if f == c:\n        return data[f]\n    d0 = data[f] * (c - k)\n    d1 = data[c] * (k - f)\n    return d0 + d1\n\n\n# ----------------------------------------------------------------------\n@pytest.fixture(scope=\"module\")\ndef client():\n    \"\"\"TestClient fixture for the FastAPI app.\"\"\"\n    return TestClient(app)\n\n\ndef test_reserve_unknown_sku_returns_409(client):\n    \"\"\"\n    Healthy behaviour: requesting a reservation for an unknown SKU must be\n    rejected with HTTP 409 (insufficient stock) \u2013 not a 500 internal error.\n    \"\"\"\n    unknown_body = {\"sku\": \"sku-unknown-xyz\", \"qty\": 1}\n    response = client.post(\"/reserve\", json=unknown_body)\n    assert response.status_code == 409, (\n        f\"Expected 409 for unknown SKU, got {response.status_code}. \"\n        f\"Response body: {response.text}\"\n    )\n    # The error message is part of the contract; ensure it mentions stock.\n    assert \"insufficient stock\" in response.text.lower(), (\n        \"Error response for unknown SKU should mention 'insufficient stock'.\"\n    )\n\n\ndef test_reserve_known_sku_is_fast_and_memory_bounded(client):\n    \"\"\"\n    Healthy behaviour: a reservation for a known SKU should succeed (200) and\n    meet generous latency budgets while keeping memory growth < 8\u202fMiB.\n    \"\"\"\n    # Choose a SKU that is known to exist (observed in the incident packet).\n    known_body = {\"sku\": \"sku-25\", \"qty\": 1}\n\n    # ------------------------------------------------------------------\n    # Memory tracking start\n    tracemalloc.start()\n    snapshot_start = tracemalloc.take_snapshot()\n\n    # ------------------------------------------------------------------\n    # Perform a burst of requests to gather latency statistics.\n    latencies_ms = []\n    for _ in range(20):\n        start = time.perf_counter()\n        resp = client.post(\"/reserve\", json=known_body)\n        elapsed_ms = (time.perf_counter() - start) * 1000\n        latencies_ms.append(elapsed_ms)\n\n        assert resp.status_code == 200, (\n            f\"Expected 200 for known SKU reservation, got {resp.status_code}. \"\n            f\"Response body: {resp.text}\"\n        )\n        # Basic sanity: response payload should contain the flag.\n        payload = resp.json()\n        assert payload.get(\"reserved\") is True, (\n            \"Successful reservation response must contain {'reserved': True}.\"\n        )\n\n    # ------------------------------------------------------------------\n    # Memory tracking end\n    snapshot_end = tracemalloc.take_snapshot()\n    tracemalloc.stop()\n    mem_diff = sum(\n        stat.size_diff for stat in snapshot_end.compare_to(snapshot_start, \"lineno\")\n    )\n    mem_mib = mem_diff / (1024 * 1024)\n\n    # ------------------------------------------------------------------\n    # Latency assertions (generous budgets based on pre\u2011incident baselines)\n    # Baselines: p50 5.11\u202fms, p95 5.92\u202fms\n    # Budgets: median \u2264 max(3\u00d7p50, p50+10\u202fms) = 15.33\u202fms\n    #          p95   \u2264 max(2\u00d7p95, p95+20\u202fms) = 25.92\u202fms\n    median_latency = statistics.median(latencies_ms)\n    p95_latency = percentile(sorted(latencies_ms), 95)\n\n    assert median_latency <= 15.33, (\n        f\"Median latency {median_latency:.2f}\u202fms exceeds the generous budget of 15.33\u202fms.\"\n    )\n    assert p95_latency <= 25.92, (\n        f\"P95 latency {p95_latency:.2f}\u202fms exceeds the generous budget of 25.92\u202fms.\"\n    )\n\n    # ------------------------------------------------------------------\n    # Memory growth assertion\n    assert mem_mib <= 8, (\n        f\"Memory grew by {mem_mib:.2f}\u202fMiB during the test, which exceeds the 8\u202fMiB limit.\"\n    )\n",
+      "guard": [],
+      "faulty": {
+        "outcome": "assertion_failed",
+        "exit_code": 1,
+        "detail": "AssertionError: Expected 409 for unknown SKU, got 500. Response body: {\"detail\":\"internal error\"}\nassert 500 == 409\n +  where 500 = <Response [500 Internal Server Error]>.status_code",
+        "output_tail": "F.                                                                       [100%]\n================================== FAILURES ===================================\n____________________ test_reserve_unknown_sku_returns_409 _____________________\n\nclient = <starlette.testclient.TestClient object at 0x0000021E0AA461D0>\n\n    def test_reserve_unknown_sku_returns_409(client):\n        \"\"\"\n        Healthy behaviour: requesting a reservation for an unknown SKU must be\n        rejected with HTTP 409 (insufficient stock) \u2013 not a 500 internal error.\n        \"\"\"\n        unknown_body = {\"sku\": \"sku-unknown-xyz\", \"qty\": 1}\n        response = client.post(\"/reserve\", json=unknown_body)\n>       assert response.status_code == 409, (\n            f\"Expected 409 for unknown SKU, got {response.status_code}. \"\n            f\"Response body: {response.text}\"\n        )\nE       AssertionError: Expected 409 for unknown SKU, got 500. Response body: {\"detail\":\"internal error\"}\nE       assert 500 == 409\nE        +  where 500 = <Response [500 Internal Server Error]>.status_code\n\nsentinel_generated\\test_incident.py:41: AssertionError\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-0pt1jpur\\ws\\report.xml -\n=========================== short test summary info ===========================\nFAILED sentinel_generated/test_incident.py::test_reserve_unknown_sku_returns_409\n1 failed, 1 passed in 1.54s\n"
+      },
+      "fixed": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": "..                                                                       [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-lq865mhk\\ws\\report.xml -\n2 passed in 1.46s\n"
+      },
+      "confirming": true
+    }
+  },
+  "llm_action": "code_fix",
+  "localization": {
+    "legacy_v0": {
+      "rank": 3,
+      "file_rank": 3,
+      "top": [
+        "inventory\\app.py:1",
+        "payments\\fraud.py:1",
+        "inventory\\store.py:1"
+      ]
+    },
+    "recent_changes": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/store.py:21-29",
+        "common/telemetry.py:1-23",
+        "orders/repository.py:1-23"
+      ]
+    },
+    "bm25": {
+      "rank": 5,
+      "file_rank": 5,
+      "top": [
+        "payments/gateway.py:54-65",
+        "inventory/app.py:28-32",
+        "common/telemetry.py:83-104"
+      ]
+    },
+    "dense": {
+      "rank": 3,
+      "file_rank": 3,
+      "top": [
+        "inventory/app.py:28-32",
+        "inventory/app.py:14-16",
+        "inventory/store.py:21-29"
+      ]
+    },
+    "hybrid": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/store.py:21-29",
+        "inventory/app.py:28-32",
+        "common/telemetry.py:38-60"
+      ]
+    },
+    "hybrid_unscoped": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/store.py:21-29",
+        "inventory/app.py:28-32",
+        "common/telemetry.py:38-60"
+      ]
+    },
+    "no_trace": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/store.py:21-29",
+        "inventory/app.py:28-32",
+        "inventory/store.py:1-9"
+      ]
+    },
+    "no_call_graph": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/store.py:21-29",
+        "inventory/app.py:28-32",
+        "common/telemetry.py:38-60"
+      ]
+    },
+    "no_change": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/store.py:21-29",
+        "inventory/app.py:28-32",
+        "common/telemetry.py:38-60"
+      ]
+    },
+    "no_dense": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/store.py:21-29",
+        "inventory/app.py:28-32",
+        "common/telemetry.py:38-60"
+      ]
+    },
+    "no_lexical": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/store.py:21-29",
+        "inventory/app.py:28-32",
+        "common/telemetry.py:38-60"
+      ]
+    },
+    "hybrid_llm": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/store.py:21-29",
+        "inventory/store.py:1-9",
+        "common/telemetry.py:38-60"
+      ],
+      "prompt_tokens": 1702,
+      "completion_tokens": 538,
+      "latency_s": 5.94,
+      "valid": true,
+      "invented_ids": []
+    },
+    "rag_llm": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/store.py:21-29",
+        "inventory/store.py:1-9",
+        "inventory/app.py:28-32"
+      ],
+      "prompt_tokens": 1035,
+      "completion_tokens": 656,
+      "latency_s": 5.45,
+      "valid": true,
+      "invented_ids": []
+    },
+    "hybrid_llm@gptoss": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/store.py:21-29",
+        "inventory/store.py:1-9",
+        "inventory/app.py:28-32"
+      ],
+      "prompt_tokens": 1794,
+      "completion_tokens": 515,
+      "latency_s": 1.89,
+      "valid": true,
+      "invented_ids": []
+    },
+    "rag_llm@gptoss": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/store.py:21-29",
+        "inventory/store.py:1-9",
+        "inventory/app.py:28-32"
+      ],
+      "prompt_tokens": 1127,
+      "completion_tokens": 472,
+      "latency_s": 1.98,
+      "valid": true,
+      "invented_ids": []
+    }
+  },
+  "exceptions_in_packet": 1
+}

@@ -1,37 +1,33 @@
 # AIOps Sentinel — Project Charter
 
-**Pitch:** AIOps Sentinel monitors an application and, when latency or failures rise, uses code search and retrieval-augmented reasoning to explain the likely code-level cause, proposes a tested remediation, and records a human-approved CI/CD handoff.
+**Pitch:** an AI system that monitors shared servers and, when trouble appears, doesn't just scale
+blindly: it uses semantic code search and RAG to trace the problem back to the actual code,
+generates a test to confirm it, proposes a fix through a CI/CD pipeline, and keeps a transparent
+record of every decision it made.
+
+## Team and ownership
+
+| Member | Owns | Deliverables |
+| --- | --- | --- |
+| Akash (P1) | Steps 1–2: shared-server monitoring, service registry, detection | `shared_server/common/telemetry.py`, `sentinel/telemetry.py`, `sentinel/registry.py`, `sentinel/detection.py`, detection results |
+| Aryan (P2) | Steps 3–5: evidence packet, code index, hybrid tracing, LLM re-rank, action decision | `sentinel/context.py`, `sentinel/indexing.py`, `sentinel/tracing.py`, localisation and ablation results |
+| Syna (P3) | Step 6 and evaluation: test generation, guard, sandbox, LLM client, benchmark harness | `sentinel/testgen.py`, `sentinel/llm.py`, `benchmark/`, `evaluation/benchmark.py`, test results |
+| Whole team | Audit trail, guardrails, docs, slides; each member can explain all parts | `sentinel/audit.py`, `sentinel/pipeline.py`, `docs/` |
 
 ## Problem and users
 
-Small DevOps teams often see a CPU, error, or latency alert without quickly knowing which endpoint or code path caused it. The target users are developers and operators responding to an incident. The project addresses the gap between operational telemetry and source code.
+Developers and operators of services that share a server. An alert says *something* is slow or
+failing; it does not say which tenant, which function, or whether a fix is justified. Scaling often
+hides code faults.
 
-## Knowledge/data sources
+## Scope
 
-- Live victim-service metrics: request count, error rate, p95 latency.
-- Application source, test code, prompts, and incident/audit records.
-- Future extension: historical logs and deployment metadata.
+In scope: steps 1–6 (monitor → detect → evidence → index → trace → confirming test), action
+decision, audit, guardrails, and a quantitative benchmark with baselines. Designed but not
+automated: fix proposal, draft PR, CI/CD rollout, post-deploy watch (steps 7–10).
 
-## Architecture
+## Success criteria
 
-```text
-Browser / API client
-        |
- AIOps Sentinel orchestration API (FastAPI)
-   |              |                 |
-Monitor      Repository RAG       Ollama / Code Llama
-   |              |                 |
-Victim app   chunks -> embeddings -> vector similarity
-   |              \                 /
-  metrics ------ incident diagnosis + cited evidence
-                            |
-                 human approval -> GitHub Actions checks -> reviewable PR
-```
-
-## Scope and safety
-
-The shipped demo deliberately **does not** merge code, restart services, or scale infrastructure. It records approval and directs the reviewer into CI. This makes the system auditable and prevents a hallucinated diagnosis from changing production.
-
-## Success scenario
-
-The scripted load exercises the victim app's intentionally slow per-order profile lookup. Sentinel sees the p95 threshold breach, retrieves `app/victim.py`, explains the N+1-style issue with citations, proposes a latency guard test, and waits for a named human approval.
+Measured on 12 injected faults + 3 controls × 3 seeds (see PROJECT_GUIDE.md §7): detection recall
+and false alarms vs fixed thresholds; Top-1 function localisation vs blame-deploy, BM25, dense,
+plain RAG + LLM and the v0 retriever; confirming-test rate; action accuracy vs scale-on-alert.

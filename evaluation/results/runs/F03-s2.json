@@ -1,0 +1,259 @@
+{
+  "scenario": "F03",
+  "seed": 2,
+  "fault_class": "memory",
+  "expected_action": "code_fix",
+  "truth": {
+    "service": "inventory",
+    "file": "inventory/cache.py",
+    "start_line": 7,
+    "end_line": 7,
+    "fault_commit_position": 2
+  },
+  "deployment": [
+    "Name the customer tiers",
+    "Keep full view history for the ops console",
+    "Document restock",
+    "Explain high-value limit"
+  ],
+  "detection": {
+    "robust": [
+      {
+        "service": "inventory",
+        "symptoms": [
+          "memory"
+        ],
+        "severity": 28.0,
+        "signals": [
+          "memory: 52.84 -> 111.36 (z=28.0, 19 buckets)"
+        ]
+      }
+    ],
+    "threshold": []
+  },
+  "action": "code_fix",
+  "confidence": 0.65,
+  "tests": {
+    "template": {
+      "code": "\"\"\"Sentinel-generated confirming test for INC-df81310f (inventory).\n\nHypothesis: The deployment in inventory/cache.py introduced unbounded per-request retention: record_view() appends a dict containing a 64KB bytearray to _recent_views on every stock lookup, so memory grows with traffic instead of staying bounded. The /stock/{sku} handler calls this path for each request, making the leak immediately visible as rising service memory.\n\"\"\"\nimport statistics\nimport time\nimport tracemalloc\n\nfrom fastapi.testclient import TestClient\n\nfrom inventory.app import app\n\nclient = TestClient(app)\n\n\ndef _call(method, url, body):\n    started = time.perf_counter()\n    response = client.request(method, url, content=body or None, headers={\"content-type\": \"application/json\"})\n    return response, (time.perf_counter() - started) * 1000\n\n\nREQUESTS = [('POST', '/reserve', '{\"sku\":\"sku-26\",\"qty\":1}'), ('GET', '/stock/sku-29', ''), ('GET', '/views', '')]\n\n\ndef test_repeated_requests_keep_memory_bounded():\n    for request in REQUESTS:\n        _call(*request)\n    tracemalloc.start()\n    before = tracemalloc.get_traced_memory()[0]\n    for _ in range(200):\n        for request in REQUESTS:\n            _call(*request)\n    growth = tracemalloc.get_traced_memory()[0] - before\n    tracemalloc.stop()\n    assert growth < 8 * 1024 * 1024, f\"memory grew by {growth / 1024 / 1024:.1f} MiB\"\n",
+      "guard": [],
+      "faulty": {
+        "outcome": "assertion_failed",
+        "exit_code": 1,
+        "detail": "AssertionError: memory grew by 15.8 MiB\nassert 16597818 < ((8 * 1024) * 1024)",
+        "output_tail": "F                                                                        [100%]\n================================== FAILURES ===================================\n_________________ test_repeated_requests_keep_memory_bounded __________________\n\n    def test_repeated_requests_keep_memory_bounded():\n        for request in REQUESTS:\n            _call(*request)\n        tracemalloc.start()\n        before = tracemalloc.get_traced_memory()[0]\n        for _ in range(200):\n            for request in REQUESTS:\n                _call(*request)\n        growth = tracemalloc.get_traced_memory()[0] - before\n        tracemalloc.stop()\n>       assert growth < 8 * 1024 * 1024, f\"memory grew by {growth / 1024 / 1024:.1f} MiB\"\nE       AssertionError: memory grew by 15.8 MiB\nE       assert 16597818 < ((8 * 1024) * 1024)\n\nsentinel_generated\\test_incident.py:35: AssertionError\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-i3wh1zph\\ws\\report.xml -\n=========================== short test summary info ===========================\nFAILED sentinel_generated/test_incident.py::test_repeated_requests_keep_memory_bounded\n1 failed in 7.20s\n"
+      },
+      "fixed": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": ".                                                                        [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-qdfqztua\\ws\\report.xml -\n1 passed in 5.66s\n"
+      },
+      "confirming": true
+    },
+    "llm": {
+      "code": "from fastapi.testclient import TestClient\nimport tracemalloc\n\nfrom inventory.app import app\n\n\ndef test_stock_lookup_memory_stays_bounded():\n    sku = \"sku-29\"\n\n    with TestClient(app) as client:\n        warmup_status = client.get(f\"/stock/{sku}\").status_code\n        assert warmup_status == 200, (\n            f\"/stock/{sku} should return HTTP 200 on a healthy service, got {warmup_status}\"\n        )\n\n        tracemalloc.start()\n        start_current, _ = tracemalloc.get_traced_memory()\n\n        for _ in range(160):\n            status_code = client.get(f\"/stock/{sku}\").status_code\n            assert status_code == 200, (\n                f\"/stock/{sku} should return HTTP 200 on every lookup, got {status_code}\"\n            )\n\n        end_current, _ = tracemalloc.get_traced_memory()\n        tracemalloc.stop()\n\n    growth = end_current - start_current\n    assert growth <= 8 * 1024 * 1024, (\n        f\"/stock/{sku} should keep traced memory growth within 8 MiB, \"\n        f\"but repeated lookups grew by {growth} bytes\"\n    )\n",
+      "guard": [],
+      "faulty": {
+        "outcome": "assertion_failed",
+        "exit_code": 1,
+        "detail": "AssertionError: /stock/sku-29 should keep traced memory growth within 8 MiB, but repeated lookups grew by 10650248 bytes\nassert 10650248 <= ((8 * 1024) * 1024)",
+        "output_tail": "      sku = \"sku-29\"\n    \n        with TestClient(app) as client:\n            warmup_status = client.get(f\"/stock/{sku}\").status_code\n            assert warmup_status == 200, (\n                f\"/stock/{sku} should return HTTP 200 on a healthy service, got {warmup_status}\"\n            )\n    \n            tracemalloc.start()\n            start_current, _ = tracemalloc.get_traced_memory()\n    \n            for _ in range(160):\n                status_code = client.get(f\"/stock/{sku}\").status_code\n                assert status_code == 200, (\n                    f\"/stock/{sku} should return HTTP 200 on every lookup, got {status_code}\"\n                )\n    \n            end_current, _ = tracemalloc.get_traced_memory()\n            tracemalloc.stop()\n    \n        growth = end_current - start_current\n>       assert growth <= 8 * 1024 * 1024, (\n            f\"/stock/{sku} should keep traced memory growth within 8 MiB, \"\n            f\"but repeated lookups grew by {growth} bytes\"\n        )\nE       AssertionError: /stock/sku-29 should keep traced memory growth within 8 MiB, but repeated lookups grew by 10650248 bytes\nE       assert 10650248 <= ((8 * 1024) * 1024)\n\nsentinel_generated\\test_incident.py:29: AssertionError\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-ueukep8f\\ws\\report.xml -\n=========================== short test summary info ===========================\nFAILED sentinel_generated/test_incident.py::test_stock_lookup_memory_stays_bounded\n1 failed in 1.58s\n"
+      },
+      "fixed": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": ".                                                                        [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-jh8cph4g\\ws\\report.xml -\n1 passed in 0.98s\n"
+      },
+      "confirming": true
+    }
+  },
+  "llm_action": "code_fix",
+  "localization": {
+    "legacy_v0": {
+      "rank": 9,
+      "file_rank": 9,
+      "top": [
+        "services.yaml:1",
+        "inventory\\app.py:1",
+        "payments\\config.py:1"
+      ]
+    },
+    "recent_changes": {
+      "rank": 3,
+      "file_rank": 3,
+      "top": [
+        "payments/fraud.py:1-7",
+        "inventory/store.py:32-36",
+        "inventory/cache.py:1-7"
+      ]
+    },
+    "bm25": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/cache.py:1-7",
+        "inventory/cache.py:15-16",
+        "inventory/cache.py:10-12"
+      ]
+    },
+    "dense": {
+      "rank": 2,
+      "file_rank": 1,
+      "top": [
+        "inventory/cache.py:10-12",
+        "inventory/cache.py:1-7",
+        "inventory/cache.py:15-16"
+      ]
+    },
+    "hybrid": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/cache.py:1-7",
+        "inventory/cache.py:15-16",
+        "inventory/cache.py:10-12"
+      ]
+    },
+    "hybrid_unscoped": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/cache.py:1-7",
+        "orders/repository.py:1-23",
+        "inventory/cache.py:15-16"
+      ]
+    },
+    "no_trace": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/cache.py:1-7",
+        "inventory/cache.py:15-16",
+        "inventory/cache.py:10-12"
+      ]
+    },
+    "no_call_graph": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/cache.py:1-7",
+        "inventory/cache.py:15-16",
+        "inventory/cache.py:10-12"
+      ]
+    },
+    "no_change": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/cache.py:1-7",
+        "inventory/cache.py:15-16",
+        "inventory/cache.py:10-12"
+      ]
+    },
+    "no_dense": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/cache.py:1-7",
+        "inventory/cache.py:15-16",
+        "inventory/cache.py:10-12"
+      ]
+    },
+    "no_lexical": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "inventory/cache.py:1-7",
+        "inventory/cache.py:10-12",
+        "inventory/cache.py:15-16"
+      ]
+    },
+    "hybrid_llm": {
+      "rank": 2,
+      "file_rank": 1,
+      "top": [
+        "inventory/cache.py:10-12",
+        "inventory/cache.py:1-7",
+        "inventory/app.py:19-25"
+      ],
+      "prompt_tokens": 1146,
+      "completion_tokens": 536,
+      "latency_s": 4.98,
+      "valid": true,
+      "invented_ids": []
+    },
+    "rag_llm": {
+      "rank": 2,
+      "file_rank": 1,
+      "top": [
+        "inventory/cache.py:10-12",
+        "inventory/cache.py:1-7",
+        "inventory/cache.py:15-16"
+      ],
+      "prompt_tokens": 837,
+      "completion_tokens": 508,
+      "latency_s": 4.29,
+      "valid": true,
+      "invented_ids": []
+    },
+    "hybrid_llm@gptoss": {
+      "rank": 2,
+      "file_rank": 1,
+      "top": [
+        "inventory/cache.py:10-12",
+        "inventory/cache.py:1-7",
+        "inventory/app.py:19-25"
+      ],
+      "prompt_tokens": 1238,
+      "completion_tokens": 496,
+      "latency_s": 13.62,
+      "valid": true,
+      "invented_ids": []
+    },
+    "rag_llm@gptoss": {
+      "rank": 2,
+      "file_rank": 1,
+      "top": [
+        "inventory/cache.py:10-12",
+        "inventory/cache.py:1-7",
+        "inventory/cache.py:15-16"
+      ],
+      "prompt_tokens": 929,
+      "completion_tokens": 415,
+      "latency_s": 8.54,
+      "valid": true,
+      "invented_ids": []
+    },
+    "hybrid_llm@qwen": {
+      "rank": 2,
+      "file_rank": 1,
+      "top": [
+        "inventory/cache.py:10-12",
+        "inventory/cache.py:1-7",
+        "inventory/app.py:19-25"
+      ],
+      "prompt_tokens": 1258,
+      "completion_tokens": 231,
+      "latency_s": 15.6,
+      "valid": true,
+      "invented_ids": []
+    },
+    "rag_llm@qwen": {
+      "rank": 2,
+      "file_rank": 1,
+      "top": [
+        "inventory/cache.py:10-12",
+        "inventory/cache.py:1-7",
+        "inventory/cache.py:15-16"
+      ],
+      "prompt_tokens": 925,
+      "completion_tokens": 216,
+      "latency_s": 14.2,
+      "valid": true,
+      "invented_ids": []
+    }
+  },
+  "exceptions_in_packet": 0
+}

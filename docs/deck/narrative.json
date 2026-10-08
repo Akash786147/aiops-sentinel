@@ -1,0 +1,41 @@
+{
+  "notes": {
+    "headline": "Evidence beats similarity: the faulty function is ranked first in 85% of incidents",
+    "detection": "Thresholds only caught error faults: latency rose to 85-400 ms, under a 500 ms alert. The price of sensitivity: 2 of 6 quiet controls raised an incident.",
+    "localization": "Plain RAG + LLM 46%, BM25 18%, dense 15%. LLM re-rank: 82% Top-1 but best file Top-1 (91%).",
+    "ablation": "Deploy diff (-24 pts) and call graph (-18 pts) carry the ranking. Removing BM25 or dense alone raises Top-1 to 91%: text similarity adds noise once structure is known.",
+    "action": "0 code fixes proposed on 9 control runs. Wrong 8/45: F09 undetected (3), F07 left as investigate (2), 2 false incidents marked investigate, 1 H03 surge missed.",
+    "limits_p1": [
+      "F09 lock contention never detected: +4 ms per reservation at 3 workers is under the floors",
+      "2 of 6 quiet controls alarmed: /pay is bursty after a restart",
+      "Needs a known change time (deploy or traffic shift)",
+      "z = 6 and the floors were set by hand on seed 0"
+    ],
+    "limits_p2": [
+      "F07: the fault is a module-level regex; the LLM named the function that uses it",
+      "F06: a decoy edit in config.py on the call path outranked the real change once",
+      "BM25 and dense add noise when structure already decides",
+      "Python only; call graph links names, not types"
+    ],
+    "limits_p3": [
+      "Single-threaded tests cannot show lock contention",
+      "gpt-5.4-mini returned an empty answer 3 times (no test); gpt-oss-120b tests often failed the known-good code too",
+      "Latency tests near a budget can flip under machine load",
+      "Known-good = fault commit reverted; latent bugs have no such version"
+    ],
+    "conclusions": [
+      "Robust, change-aware detection found 92% of faults vs 33% for fixed thresholds, at 2 false incidents in 6 quiet runs",
+      "Hybrid tracing: 85% Top-1 vs 36% blame-deploy, 46% plain RAG + LLM, 3% v0",
+      "Generated tests confirmed the diagnosis in 94% (template) and 91% (LLM) of detected faults",
+      "82% right actions vs 13% for scale-on-alert; no code fix proposed on any control"
+    ]
+  },
+  "example": {
+    "title": "F05: a config change made payments slow",
+    "detect": "payments, POST /pay p95 55 ms -> 401 ms, z = 125, 20 of 20 buckets. Thresholds: silent (under 500 ms).",
+    "trace": "Top-1: payments/config.py module block. Changed by \"Be more patient with the card gateway\" and read on the /pay call path (depth 2). Confidence 1.0. LLM agrees (0.91): slow gateway path matches ~400 ms requests.",
+    "confirm": "LLM test: 60 POST /pay calls, p95 <= 111 ms. Faulty code: 403 ms, assertion fails. Known-good code: passes. Confirming.",
+    "handoff": "Recommended action code_fix, owner team-payments. No change made; waiting for a named approver.",
+    "audit": "detect -> context (packet 94d8107f) -> trace hybrid -> trace hybrid+llm (gpt-5.4-mini, 3.3k tokens, 10.5 s) -> test template -> test llm -> handoff: awaiting human approval"
+  }
+}

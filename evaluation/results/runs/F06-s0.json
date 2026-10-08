@@ -1,0 +1,248 @@
+{
+  "scenario": "F06",
+  "seed": 0,
+  "fault_class": "latency",
+  "expected_action": "code_fix",
+  "truth": {
+    "service": "payments",
+    "file": "payments/gateway.py",
+    "start_line": 58,
+    "end_line": 62,
+    "fault_commit_position": 2
+  },
+  "deployment": [
+    "Document restock",
+    "Use a fresh gateway connection per attempt",
+    "Document order summary route",
+    "Add supported currencies"
+  ],
+  "detection": {
+    "robust": [
+      {
+        "service": "payments",
+        "symptoms": [
+          "latency"
+        ],
+        "severity": 34.6,
+        "signals": [
+          "latency on POST /pay: 55.34 -> 85.94 (z=34.6, 20 buckets)"
+        ]
+      }
+    ],
+    "threshold": []
+  },
+  "action": "code_fix",
+  "confidence": 0.83,
+  "tests": {
+    "template": {
+      "code": "\"\"\"Sentinel-generated confirming test for INC-99604917 (payments).\n\nHypothesis: The latency regression is most likely from `charge()` creating a fresh `Connection()` on every retry, so a timed-out payment pays the connection setup cost multiple times. With `MAX_RETRIES=2` and the gateway timeout at 50ms, the observed ~198.9ms samples line up with three timed-out attempts plus repeated connection overhead.\n\"\"\"\nimport statistics\nimport time\nimport tracemalloc\n\nfrom fastapi.testclient import TestClient\n\nfrom payments.app import app\n\nclient = TestClient(app)\n\n\ndef _call(method, url, body):\n    started = time.perf_counter()\n    response = client.request(method, url, content=body or None, headers={\"content-type\": \"application/json\"})\n    return response, (time.perf_counter() - started) * 1000\n\n\nREQUEST = ('POST', '/pay', '{\"email\":\"user760@shop.example\",\"amount\":210.85}')\nBUDGET_P50_MS = 14.4  # pre-incident p50 4.36 ms, with margin\nBUDGET_P95_MS = 111.0  # pre-incident p95 55.51 ms, with margin\n\n\ndef test_incident_request_stays_within_latency_budget():\n    _call(*REQUEST)  # warm-up\n    timings = sorted(_call(*REQUEST)[1] for _ in range(20))\n    assert statistics.median(timings) <= BUDGET_P50_MS, timings\n    assert timings[18] <= BUDGET_P95_MS, timings\n",
+      "guard": [],
+      "faulty": {
+        "outcome": "assertion_failed",
+        "exit_code": 1,
+        "detail": "AssertionError: [21.841100009623915, 21.957100019790232, 22.331200016196817, 22.5810999982059, 22.729899967089295, 22.8227999759838, ...]\nassert 23.451300017768517 <= 14.4\n +  where 23.451300017768517 = <function median at 0x000002418DAD1120>([21.841100009623915, 21.957100019790232, 22.331200016196817, 22.5810999982059, 22.729899967089295, 22.8227999759838, ...])\n +    where <function median at 0x000002418DAD1120> = statistics.median",
+        "output_tail": "F                                                                        [100%]\n================================== FAILURES ===================================\n______________ test_incident_request_stays_within_latency_budget ______________\n\n    def test_incident_request_stays_within_latency_budget():\n        _call(*REQUEST)  # warm-up\n        timings = sorted(_call(*REQUEST)[1] for _ in range(20))\n>       assert statistics.median(timings) <= BUDGET_P50_MS, timings\nE       AssertionError: [21.841100009623915, 21.957100019790232, 22.331200016196817, 22.5810999982059, 22.729899967089295, 22.8227999759838, ...]\nE       assert 23.451300017768517 <= 14.4\nE        +  where 23.451300017768517 = <function median at 0x000002418DAD1120>([21.841100009623915, 21.957100019790232, 22.331200016196817, 22.5810999982059, 22.729899967089295, 22.8227999759838, ...])\nE        +    where <function median at 0x000002418DAD1120> = statistics.median\n\nsentinel_generated\\test_incident.py:30: AssertionError\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-xx3ihxkh\\ws\\report.xml -\n=========================== short test summary info ===========================\nFAILED sentinel_generated/test_incident.py::test_incident_request_stays_within_latency_budget\n1 failed in 2.31s\n"
+      },
+      "fixed": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": ".                                                                        [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-zi6odao5\\ws\\report.xml -\n1 passed in 1.50s\n"
+      },
+      "confirming": true
+    },
+    "llm": {
+      "code": "import statistics\nimport time\n\nfrom fastapi.testclient import TestClient\n\nfrom payments.app import app\n\n\ndef test_pay_latency_within_budget():\n    baseline_p50_ms = 4.36\n    baseline_p95_ms = 55.51\n    median_budget_ms = max(3 * baseline_p50_ms, baseline_p50_ms + 10.0)\n    p95_budget_ms = max(2 * baseline_p95_ms, baseline_p95_ms + 20.0)\n\n    payload = {\"email\": \"user760@shop.example\", \"amount\": 210.85}\n\n    with TestClient(app) as client:\n        # Warm up the app so the timed samples reflect route behavior rather than startup.\n        for _ in range(2):\n            warmup_response = client.post(\"/pay\", json=payload)\n            assert (\n                warmup_response.status_code == 200\n            ), f\"warmup /pay should return 200, got {warmup_response.status_code}\"\n\n        samples_ms = []\n        for _ in range(25):\n            start = time.perf_counter()\n            response = client.post(\"/pay\", json=payload)\n            elapsed_ms = (time.perf_counter() - start) * 1000.0\n            samples_ms.append(elapsed_ms)\n\n            assert (\n                response.status_code == 200\n            ), f\"/pay should return 200, got {response.status_code}\"\n\n    median_ms = statistics.median(samples_ms)\n    p95_ms = sorted(samples_ms)[int(0.95 * len(samples_ms)) - 1]\n\n    assert (\n        median_ms <= median_budget_ms\n    ), f\"/pay median latency should be <= {median_budget_ms:.2f} ms, got {median_ms:.2f} ms\"\n\n    assert (\n        p95_ms <= p95_budget_ms\n    ), f\"/pay p95 latency should be <= {p95_budget_ms:.2f} ms, got {p95_ms:.2f} ms\"\n",
+      "guard": [],
+      "faulty": {
+        "outcome": "assertion_failed",
+        "exit_code": 1,
+        "detail": "AssertionError: /pay median latency should be <= 14.36 ms, got 20.96 ms\nassert 20.957000029738992 <= 14.36",
+        "output_tail": "timed samples reflect route behavior rather than startup.\n            for _ in range(2):\n                warmup_response = client.post(\"/pay\", json=payload)\n                assert (\n                    warmup_response.status_code == 200\n                ), f\"warmup /pay should return 200, got {warmup_response.status_code}\"\n    \n            samples_ms = []\n            for _ in range(25):\n                start = time.perf_counter()\n                response = client.post(\"/pay\", json=payload)\n                elapsed_ms = (time.perf_counter() - start) * 1000.0\n                samples_ms.append(elapsed_ms)\n    \n                assert (\n                    response.status_code == 200\n                ), f\"/pay should return 200, got {response.status_code}\"\n    \n        median_ms = statistics.median(samples_ms)\n        p95_ms = sorted(samples_ms)[int(0.95 * len(samples_ms)) - 1]\n    \n>       assert (\n            median_ms <= median_budget_ms\n        ), f\"/pay median latency should be <= {median_budget_ms:.2f} ms, got {median_ms:.2f} ms\"\nE       AssertionError: /pay median latency should be <= 14.36 ms, got 20.96 ms\nE       assert 20.957000029738992 <= 14.36\n\nsentinel_generated\\test_incident.py:39: AssertionError\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-qi21lw75\\ws\\report.xml -\n=========================== short test summary info ===========================\nFAILED sentinel_generated/test_incident.py::test_pay_latency_within_budget - ...\n1 failed in 2.54s\n"
+      },
+      "fixed": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": ".                                                                        [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-g1oi7sq3\\ws\\report.xml -\n1 passed in 1.51s\n"
+      },
+      "confirming": true
+    },
+    "llm@gptoss": {
+      "code": "import json\nimport time\nimport statistics\nimport tracemalloc\n\nimport pytest\nfrom fastapi.testclient import TestClient\n\n# Import the FastAPI app from the service package\nfrom payments.app import app\n\n# Baseline latency figures (ms) from the incident packet\nBASELINE_P50_MS = 4.36   # POST /pay p50\nBASELINE_P95_MS = 55.51  # POST /pay p95\n\n# Healthy thresholds derived from the specification\nMEDIAN_THRESHOLD_MS = max(3 * BASELINE_P50_MS, BASELINE_P50_MS + 10)   # 14.36 ms\nP95_THRESHOLD_MS = max(2 * BASELINE_P95_MS, BASELINE_P95_MS + 20)     # 111.02 ms\nMAX_MEMORY_GROWTH_BYTES = 8 * 1024 * 1024  # 8\u202fMiB\n\n\ndef _percentile(data, perc):\n    \"\"\"Return the `perc`th percentile of a list of numbers (perc in [0,100]).\"\"\"\n    if not data:\n        raise ValueError(\"empty data\")\n    k = (len(data) - 1) * perc / 100\n    f = int(k)\n    c = f + 1\n    if c >= len(data):\n        return data[f]\n    d0 = data[f] * (c - k)\n    d1 = data[c] * (k - f)\n    return d0 + d1\n\n\n@pytest.fixture(scope=\"module\")\ndef client():\n    \"\"\"TestClient fixture for the FastAPI app.\"\"\"\n    return TestClient(app)\n\n\ndef test_pay_latency_and_memory_are_healthy(client):\n    \"\"\"\n    Verify that the /pay endpoint meets the healthy latency and memory\u2011growth expectations.\n    The test should FAIL while the slow\u2011call logic is active (observed ~200\u202fms latency)\n    and PASS once the root cause is fixed.\n    \"\"\"\n    # Prepare a set of request bodies \u2013 values are irrelevant for latency\n    payloads = [\n        {\"email\": f\"user{i}@shop.example\", \"amount\": float(i * 10 + 0.99)}\n        for i in range(20)\n    ]\n\n    # Start memory tracking\n    tracemalloc.start()\n    snapshot_before = tracemalloc.take_snapshot()\n\n    latencies_ms = []\n\n    for body in payloads:\n        start = time.perf_counter()\n        response = client.post(\"/pay\", json=body)\n        elapsed = (time.perf_counter() - start) * 1000  # convert to ms\n        latencies_ms.append(elapsed)\n\n        # Basic sanity check on the response\n        assert response.status_code == 200, f\"Expected 200 OK, got {response.status_code}\"\n        resp_json = response.json()\n        assert resp_json.get(\"status\") == \"captured\", (\n            f\"Unexpected payment status: {resp_json}\"\n        )\n\n    # Stop memory tracking and compute growth\n    snapshot_after = tracemalloc.take_snapshot()\n    tracemalloc.stop()\n    stats = snapshot_after.compare_to(snapshot_before, \"lineno\")\n    total_growth = sum(stat.size_diff for stat in stats)\n    assert total_growth <= MAX_MEMORY_GROWTH_BYTES, (\n        f\"Memory grew by {total_growth / (1024 * 1024):.2f}\u202fMiB, \"\n        f\"exceeding the allowed {MAX_MEMORY_GROWTH_BYTES / (1024 * 1024)}\u202fMiB\"\n    )\n\n    # Compute latency statistics\n    median_ms = statistics.median(latencies_ms)\n    p95_ms = _percentile(sorted(latencies_ms), 95)\n\n    assert median_ms <= MEDIAN_THRESHOLD_MS, (\n        f\"Median latency {median_ms:.2f}\u202fms exceeds healthy threshold \"\n        f\"{MEDIAN_THRESHOLD_MS:.2f}\u202fms (baseline p50 {BASELINE_P50_MS}\u202fms)\"\n    )\n    assert p95_ms <= P95_THRESHOLD_MS, (\n        f\"P95 latency {p95_ms:.2f}\u202fms exceeds healthy threshold \"\n        f\"{P95_THRESHOLD_MS:.2f}\u202fms (baseline p95 {BASELINE_P95_MS}\u202fms)\"\n    )\n",
+      "guard": [],
+      "faulty": {
+        "outcome": "assertion_failed",
+        "exit_code": 1,
+        "detail": "AssertionError: Median latency 26.75\u202fms exceeds healthy threshold 14.36\u202fms (baseline p50 4.36\u202fms)\nassert 26.750650024041533 <= 14.36",
+        "output_tail": "p_json = response.json()\n            assert resp_json.get(\"status\") == \"captured\", (\n                f\"Unexpected payment status: {resp_json}\"\n            )\n    \n        # Stop memory tracking and compute growth\n        snapshot_after = tracemalloc.take_snapshot()\n        tracemalloc.stop()\n        stats = snapshot_after.compare_to(snapshot_before, \"lineno\")\n        total_growth = sum(stat.size_diff for stat in stats)\n        assert total_growth <= MAX_MEMORY_GROWTH_BYTES, (\n            f\"Memory grew by {total_growth / (1024 * 1024):.2f}\u202fMiB, \"\n            f\"exceeding the allowed {MAX_MEMORY_GROWTH_BYTES / (1024 * 1024)}\u202fMiB\"\n        )\n    \n        # Compute latency statistics\n        median_ms = statistics.median(latencies_ms)\n        p95_ms = _percentile(sorted(latencies_ms), 95)\n    \n>       assert median_ms <= MEDIAN_THRESHOLD_MS, (\n            f\"Median latency {median_ms:.2f}\u202fms exceeds healthy threshold \"\n            f\"{MEDIAN_THRESHOLD_MS:.2f}\u202fms (baseline p50 {BASELINE_P50_MS}\u202fms)\"\n        )\nE       AssertionError: Median latency 26.75\u202fms exceeds healthy threshold 14.36\u202fms (baseline p50 4.36\u202fms)\nE       assert 26.750650024041533 <= 14.36\n\nsentinel_generated\\test_incident.py:87: AssertionError\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-rv0zsrwi\\ws\\report.xml -\n=========================== short test summary info ===========================\nFAILED sentinel_generated/test_incident.py::test_pay_latency_and_memory_are_healthy\n1 failed in 2.44s\n"
+      },
+      "fixed": {
+        "outcome": "assertion_failed",
+        "exit_code": 1,
+        "detail": "AssertionError: P95 latency 118.52\u202fms exceeds healthy threshold 111.02\u202fms (baseline p95 55.51\u202fms)\nassert 118.52338497410535 <= 111.02",
+        "output_tail": "e growth\n        snapshot_after = tracemalloc.take_snapshot()\n        tracemalloc.stop()\n        stats = snapshot_after.compare_to(snapshot_before, \"lineno\")\n        total_growth = sum(stat.size_diff for stat in stats)\n        assert total_growth <= MAX_MEMORY_GROWTH_BYTES, (\n            f\"Memory grew by {total_growth / (1024 * 1024):.2f}\u202fMiB, \"\n            f\"exceeding the allowed {MAX_MEMORY_GROWTH_BYTES / (1024 * 1024)}\u202fMiB\"\n        )\n    \n        # Compute latency statistics\n        median_ms = statistics.median(latencies_ms)\n        p95_ms = _percentile(sorted(latencies_ms), 95)\n    \n        assert median_ms <= MEDIAN_THRESHOLD_MS, (\n            f\"Median latency {median_ms:.2f}\u202fms exceeds healthy threshold \"\n            f\"{MEDIAN_THRESHOLD_MS:.2f}\u202fms (baseline p50 {BASELINE_P50_MS}\u202fms)\"\n        )\n>       assert p95_ms <= P95_THRESHOLD_MS, (\n            f\"P95 latency {p95_ms:.2f}\u202fms exceeds healthy threshold \"\n            f\"{P95_THRESHOLD_MS:.2f}\u202fms (baseline p95 {BASELINE_P95_MS}\u202fms)\"\n        )\nE       AssertionError: P95 latency 118.52\u202fms exceeds healthy threshold 111.02\u202fms (baseline p95 55.51\u202fms)\nE       assert 118.52338497410535 <= 111.02\n\nsentinel_generated\\test_incident.py:91: AssertionError\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-pno8ac2x\\ws\\report.xml -\n=========================== short test summary info ===========================\nFAILED sentinel_generated/test_incident.py::test_pay_latency_and_memory_are_healthy\n1 failed in 1.71s\n"
+      },
+      "confirming": false
+    }
+  },
+  "llm_action": "code_fix",
+  "localization": {
+    "legacy_v0": {
+      "rank": null,
+      "file_rank": 10,
+      "top": [
+        "inventory\\app.py:1",
+        "payments\\app.py:1",
+        "services.yaml:1"
+      ]
+    },
+    "recent_changes": {
+      "rank": 3,
+      "file_rank": 3,
+      "top": [
+        "payments/config.py:1-8",
+        "orders/app.py:24-27",
+        "payments/gateway.py:54-63"
+      ]
+    },
+    "bm25": {
+      "rank": null,
+      "file_rank": 3,
+      "top": [
+        "orders/repository.py:25-26",
+        "common/telemetry.py:62-81",
+        "payments/gateway.py:24-32"
+      ]
+    },
+    "dense": {
+      "rank": null,
+      "file_rank": 5,
+      "top": [
+        "orders/repository.py:25-26",
+        "orders/repository.py:1-22",
+        "inventory/store.py:16-18"
+      ]
+    },
+    "hybrid": {
+      "rank": 2,
+      "file_rank": 2,
+      "top": [
+        "payments/config.py:1-8",
+        "payments/gateway.py:54-63",
+        "payments/gateway.py:24-32"
+      ]
+    },
+    "hybrid_unscoped": {
+      "rank": 2,
+      "file_rank": 2,
+      "top": [
+        "payments/config.py:1-8",
+        "payments/gateway.py:54-63",
+        "payments/gateway.py:24-32"
+      ]
+    },
+    "no_trace": {
+      "rank": 2,
+      "file_rank": 2,
+      "top": [
+        "payments/config.py:1-8",
+        "payments/gateway.py:54-63",
+        "payments/gateway.py:24-32"
+      ]
+    },
+    "no_call_graph": {
+      "rank": 2,
+      "file_rank": 2,
+      "top": [
+        "payments/config.py:1-8",
+        "payments/gateway.py:54-63",
+        "payments/gateway.py:24-32"
+      ]
+    },
+    "no_change": {
+      "rank": 3,
+      "file_rank": 2,
+      "top": [
+        "payments/config.py:1-8",
+        "payments/gateway.py:24-32",
+        "payments/gateway.py:54-63"
+      ]
+    },
+    "no_dense": {
+      "rank": 2,
+      "file_rank": 2,
+      "top": [
+        "payments/config.py:1-8",
+        "payments/gateway.py:54-63",
+        "payments/gateway.py:24-32"
+      ]
+    },
+    "no_lexical": {
+      "rank": 2,
+      "file_rank": 2,
+      "top": [
+        "payments/config.py:1-8",
+        "payments/gateway.py:54-63",
+        "payments/gateway.py:24-32"
+      ]
+    },
+    "hybrid_llm": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "payments/gateway.py:54-63",
+        "payments/gateway.py:24-32",
+        "payments/gateway.py:1-17"
+      ],
+      "prompt_tokens": 1629,
+      "completion_tokens": 2114,
+      "latency_s": 11.42,
+      "valid": true,
+      "invented_ids": []
+    },
+    "rag_llm": {
+      "rank": null,
+      "file_rank": 1,
+      "top": [
+        "payments/gateway.py:21-22",
+        "payments/gateway.py:24-32",
+        "payments/config.py:1-8"
+      ],
+      "prompt_tokens": 1412,
+      "completion_tokens": 1731,
+      "latency_s": 9.41,
+      "valid": true,
+      "invented_ids": []
+    },
+    "hybrid_llm@gptoss": {
+      "rank": 2,
+      "file_rank": 1,
+      "top": [
+        "payments/gateway.py:24-32",
+        "payments/gateway.py:54-63",
+        "payments/config.py:1-8"
+      ],
+      "prompt_tokens": 1721,
+      "completion_tokens": 823,
+      "latency_s": 16.83,
+      "valid": true,
+      "invented_ids": []
+    },
+    "rag_llm@gptoss": {
+      "rank": null,
+      "file_rank": 2,
+      "top": [
+        "inventory/store.py:16-18",
+        "payments/gateway.py:24-32",
+        "orders/repository.py:25-26"
+      ],
+      "prompt_tokens": 1504,
+      "completion_tokens": 846,
+      "latency_s": 17.18,
+      "valid": true,
+      "invented_ids": []
+    }
+  },
+  "exceptions_in_packet": 0
+}

@@ -1,0 +1,20 @@
+# Service registry for the shared server. Sentinel uses it to attribute telemetry to a
+# service, scope code search to that service's code, and name the owner who must approve.
+server: shared-01
+services:
+  - name: orders
+    owner: team-commerce
+    path: orders
+    module: orders.app:app
+    port: 9101
+  - name: inventory
+    owner: team-logistics
+    path: inventory
+    module: inventory.app:app
+    port: 9102
+  - name: payments
+    owner: team-payments
+    path: payments
+    module: payments.app:app
+    port: 9103
+shared_code: [common]

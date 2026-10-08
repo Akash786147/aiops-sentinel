@@ -9,14 +9,14 @@ permissions:
   contents: read
 
 jobs:
-  validate-proposed-remediation:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: "3.12"}
       - run: pip install -r requirements.txt
-      - run: ruff check app services tests scripts
+      - run: ruff check app services tests scripts sentinel benchmark evaluation
       - run: pytest -q
       - name: Remediation governance notice
         run: echo "CI validates tests only. A human code reviewer must approve any proposed fix before merge."

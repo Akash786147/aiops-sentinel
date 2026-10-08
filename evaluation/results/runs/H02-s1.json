@@ -1,0 +1,26 @@
+{
+  "scenario": "H02",
+  "seed": 1,
+  "fault_class": "none",
+  "expected_action": "none",
+  "truth": {
+    "service": null,
+    "file": null,
+    "start_line": null,
+    "end_line": null,
+    "fault_commit_position": null
+  },
+  "deployment": [
+    "Keep more request samples",
+    "Show more views by default",
+    "Explain high-value limit",
+    "Rename local variable in reserve"
+  ],
+  "detection": {
+    "robust": [],
+    "threshold": []
+  },
+  "action": "none",
+  "confidence": null,
+  "tests": {}
+}

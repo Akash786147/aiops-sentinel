@@ -1,0 +1,221 @@
+{
+  "scenario": "F07",
+  "seed": 2,
+  "fault_class": "cpu",
+  "expected_action": "code_fix",
+  "truth": {
+    "service": "payments",
+    "file": "payments/fraud.py",
+    "start_line": 7,
+    "end_line": 7,
+    "fault_commit_position": 1
+  },
+  "deployment": [
+    "Allow dotted QA account names",
+    "Document restock",
+    "Clarify connection cost",
+    "Name the customer tiers"
+  ],
+  "detection": {
+    "robust": [
+      {
+        "service": "payments",
+        "symptoms": [
+          "latency"
+        ],
+        "severity": 41.7,
+        "signals": [
+          "latency on POST /pay: 55.5 -> 113.34 (z=41.7, 17 buckets)"
+        ]
+      }
+    ],
+    "threshold": []
+  },
+  "action": "investigate",
+  "confidence": 0.43,
+  "tests": {
+    "template": {
+      "code": "\"\"\"Sentinel-generated confirming test for INC-ced659fd (payments).\n\nHypothesis: The /pay requests are spending extra time in the gateway path: slow upstream calls hit a 50ms timeout, then charge() retries them, so a single slow payment can add multiple timeout delays before still returning 200. The shown email qaaaa...@example.org does not match the fraud filter, so the request reaches the gateway instead of being short-circuited.\n\"\"\"\nimport statistics\nimport time\nimport tracemalloc\n\nfrom fastapi.testclient import TestClient\n\nfrom payments.app import app\n\nclient = TestClient(app)\n\n\ndef _call(method, url, body):\n    started = time.perf_counter()\n    response = client.request(method, url, content=body or None, headers={\"content-type\": \"application/json\"})\n    return response, (time.perf_counter() - started) * 1000\n\n\nREQUEST = ('POST', '/pay', '{\"email\":\"qaaaaaaaaaaaaaaaaaaaaaa@example.org\",\"amount\":243.23}')\nBUDGET_P50_MS = 14.4  # pre-incident p50 4.38 ms, with margin\nBUDGET_P95_MS = 111.1  # pre-incident p95 55.57 ms, with margin\n\n\ndef test_incident_request_stays_within_latency_budget():\n    _call(*REQUEST)  # warm-up\n    timings = sorted(_call(*REQUEST)[1] for _ in range(20))\n    assert statistics.median(timings) <= BUDGET_P50_MS, timings\n    assert timings[18] <= BUDGET_P95_MS, timings\n",
+      "guard": [],
+      "faulty": {
+        "outcome": "assertion_failed",
+        "exit_code": 1,
+        "detail": "AssertionError: [78.34720000391826, 78.793799970299, 79.05430003302172, 79.17470001848415, 79.22569999936968, 79.422099981457, ...]\nassert 81.80949999950826 <= 14.4\n +  where 81.80949999950826 = <function median at 0x000001AEB5B41120>([78.34720000391826, 78.793799970299, 79.05430003302172, 79.17470001848415, 79.22569999936968, 79.422099981457, ...])\n +    where <function median at 0x000001AEB5B41120> = statistics.median",
+        "output_tail": "F                                                                        [100%]\n================================== FAILURES ===================================\n______________ test_incident_request_stays_within_latency_budget ______________\n\n    def test_incident_request_stays_within_latency_budget():\n        _call(*REQUEST)  # warm-up\n        timings = sorted(_call(*REQUEST)[1] for _ in range(20))\n>       assert statistics.median(timings) <= BUDGET_P50_MS, timings\nE       AssertionError: [78.34720000391826, 78.793799970299, 79.05430003302172, 79.17470001848415, 79.22569999936968, 79.422099981457, ...]\nE       assert 81.80949999950826 <= 14.4\nE        +  where 81.80949999950826 = <function median at 0x000001AEB5B41120>([78.34720000391826, 78.793799970299, 79.05430003302172, 79.17470001848415, 79.22569999936968, 79.422099981457, ...])\nE        +    where <function median at 0x000001AEB5B41120> = statistics.median\n\nsentinel_generated\\test_incident.py:30: AssertionError\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-uyo5v6x8\\ws\\report.xml -\n=========================== short test summary info ===========================\nFAILED sentinel_generated/test_incident.py::test_incident_request_stays_within_latency_budget\n1 failed in 3.20s\n"
+      },
+      "fixed": {
+        "outcome": "passed",
+        "exit_code": 0,
+        "detail": "",
+        "output_tail": ".                                                                        [100%]\n- generated xml file: C:\\Users\\akash\\AppData\\Local\\Temp\\sentinel-sandbox-oscihtqz\\ws\\report.xml -\n1 passed in 1.28s\n"
+      },
+      "confirming": true
+    },
+    "llm": {
+      "code": "",
+      "confirming": false,
+      "guard": [
+        "no test generated"
+      ]
+    }
+  },
+  "llm_action": "code_fix",
+  "localization": {
+    "legacy_v0": {
+      "rank": 6,
+      "file_rank": 6,
+      "top": [
+        "inventory\\app.py:1",
+        "payments\\app.py:1",
+        "services.yaml:1"
+      ]
+    },
+    "recent_changes": {
+      "rank": 4,
+      "file_rank": 4,
+      "top": [
+        "orders/repository.py:1-23",
+        "payments/gateway.py:1-17",
+        "inventory/store.py:32-36"
+      ]
+    },
+    "bm25": {
+      "rank": null,
+      "file_rank": null,
+      "top": [
+        "orders/repository.py:26-27",
+        "common/telemetry.py:62-81",
+        "payments/gateway.py:24-32"
+      ]
+    },
+    "dense": {
+      "rank": null,
+      "file_rank": null,
+      "top": [
+        "orders/repository.py:26-27",
+        "orders/repository.py:1-23",
+        "inventory/store.py:16-18"
+      ]
+    },
+    "hybrid": {
+      "rank": 3,
+      "file_rank": 3,
+      "top": [
+        "payments/config.py:1-7",
+        "payments/gateway.py:24-32",
+        "payments/fraud.py:1-7"
+      ]
+    },
+    "hybrid_unscoped": {
+      "rank": 3,
+      "file_rank": 3,
+      "top": [
+        "orders/repository.py:1-23",
+        "payments/config.py:1-7",
+        "payments/fraud.py:1-7"
+      ]
+    },
+    "no_trace": {
+      "rank": 3,
+      "file_rank": 3,
+      "top": [
+        "payments/config.py:1-7",
+        "payments/gateway.py:24-32",
+        "payments/fraud.py:1-7"
+      ]
+    },
+    "no_call_graph": {
+      "rank": 3,
+      "file_rank": 3,
+      "top": [
+        "common/telemetry.py:62-81",
+        "payments/gateway.py:24-32",
+        "payments/fraud.py:1-7"
+      ]
+    },
+    "no_change": {
+      "rank": null,
+      "file_rank": 7,
+      "top": [
+        "payments/config.py:1-7",
+        "payments/gateway.py:24-32",
+        "payments/gateway.py:54-65"
+      ]
+    },
+    "no_dense": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "payments/fraud.py:1-7",
+        "payments/config.py:1-7",
+        "payments/fraud.py:10-12"
+      ]
+    },
+    "no_lexical": {
+      "rank": 1,
+      "file_rank": 1,
+      "top": [
+        "payments/fraud.py:1-7",
+        "payments/config.py:1-7",
+        "payments/gateway.py:54-65"
+      ]
+    },
+    "hybrid_llm": {
+      "rank": 5,
+      "file_rank": 4,
+      "top": [
+        "payments/gateway.py:24-32",
+        "payments/gateway.py:54-65",
+        "payments/config.py:1-7"
+      ],
+      "prompt_tokens": 1513,
+      "completion_tokens": 2310,
+      "latency_s": 16.0,
+      "valid": true,
+      "invented_ids": []
+    },
+    "rag_llm": {
+      "rank": null,
+      "file_rank": null,
+      "top": [
+        "payments/gateway.py:24-32",
+        "payments/gateway.py:21-22",
+        "payments/config.py:1-7"
+      ],
+      "prompt_tokens": 1428,
+      "completion_tokens": 1924,
+      "latency_s": 13.51,
+      "valid": true,
+      "invented_ids": []
+    },
+    "hybrid_llm@gptoss": {
+      "rank": 4,
+      "file_rank": 4,
+      "top": [
+        "payments/gateway.py:24-32",
+        "payments/config.py:1-7",
+        "payments/gateway.py:54-65"
+      ],
+      "prompt_tokens": 1605,
+      "completion_tokens": 1348,
+      "latency_s": 22.83,
+      "valid": true,
+      "invented_ids": []
+    },
+    "rag_llm@gptoss": {
+      "rank": null,
+      "file_rank": null,
+      "top": [
+        "payments/gateway.py:24-32",
+        "payments/gateway.py:21-22",
+        "inventory/store.py:16-18"
+      ],
+      "prompt_tokens": 1520,
+      "completion_tokens": 795,
+      "latency_s": 17.07,
+      "valid": true,
+      "invented_ids": []
+    }
+  },
+  "exceptions_in_packet": 0
+}

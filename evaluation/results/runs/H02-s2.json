@@ -1,0 +1,26 @@
+{
+  "scenario": "H02",
+  "seed": 2,
+  "fault_class": "none",
+  "expected_action": "none",
+  "truth": {
+    "service": null,
+    "file": null,
+    "start_line": null,
+    "end_line": null,
+    "fault_commit_position": null
+  },
+  "deployment": [
+    "Document order summary route",
+    "Describe the views endpoint",
+    "Clarify connection cost",
+    "Rename local variable in reserve"
+  ],
+  "detection": {
+    "robust": [],
+    "threshold": []
+  },
+  "action": "none",
+  "confidence": null,
+  "tests": {}
+}
