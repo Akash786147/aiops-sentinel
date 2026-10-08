@@ -4,11 +4,11 @@ This is one progressively extended application: **AIOps Sentinel**.
 
 | Exercise | Required concept | Implementation / demonstration |
 | --- | --- | --- |
-| 1 | Application → API → Ollama → Code Llama → response | `POST /api/ask` calls `services/llm.py`, which uses Ollama's `/api/generate` with `codellama:7b-instruct`. The response declares `engine` so a retrieval-only fallback cannot be mistaken for a model answer. |
+| 1 | Application → API → Ollama → model → response | `POST /api/ask` and streaming `POST /api/ask/stream` call `services/llm.py`, which uses Ollama's `/api/generate` with the shared `qwen2.5-coder:7b` model. The response declares `engine` so a retrieval-only fallback cannot be mistaken for a model answer. |
 | 2 | Knowledge base, chunking, embeddings, vectors | `services/retrieval.py` reads repo files, creates 44-line overlapping chunks, makes normalized 128-d hashing embeddings, and persists them in ChromaDB when installed. |
 | 3 | Similarity retrieval and RAG | `/api/ask` embeds the question, ranks chunks by cosine similarity, and passes cited context into the Ollama prompt. Toggle `use_rag` false/true to compare a no-context answer with grounded RAG. |
 | 4 | APIs, services, orchestration | FastAPI is the application/orchestration service; `monitor.py`, `retrieval.py`, `llm.py`, and `diagnosis.py` are clean service boundaries. `/api/monitor/check` coordinates metrics → threshold → retrieval → LLM diagnosis. |
-| 5 | Docker and service communication | `docker-compose.yml` runs Sentinel, victim, and Ollama as separate services. The Sentinel container reaches `victim:8001` and `ollama:11434`. |
+| 5 | Docker and service communication | `docker-compose.yml` runs Sentinel and victim as separate services. Sentinel reaches `victim:8001` and the shared Ollama server by default; an optional local Ollama service is provided through the `local-ollama` profile. |
 
 ## Commands for the lab demo
 

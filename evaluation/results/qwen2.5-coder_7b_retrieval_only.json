@@ -11,7 +11,7 @@
       "retrieved_paths": [
         "services/llm.py",
         "services/llm.py",
-        "services/monitor.py"
+        "services/diagnosis.py"
       ],
       "expected_paths": [
         "app/victim.py"
@@ -25,8 +25,8 @@
       "category": "bug_analysis",
       "question": "Why might the detailed orders endpoint be slow?",
       "retrieved_paths": [
-        "services/diagnosis.py",
         "app/victim.py",
+        "services/diagnosis.py",
         "services/llm.py"
       ],
       "expected_paths": [
@@ -43,7 +43,7 @@
       "retrieved_paths": [
         "app/victim.py",
         "services/__init__.py",
-        "services/diagnosis.py"
+        "services/retrieval.py"
       ],
       "expected_paths": [
         "app/victim.py"
@@ -108,7 +108,7 @@
       "retrieved_paths": [
         "services/retrieval.py",
         "services/__init__.py",
-        "services/retrieval.py"
+        "docker-compose.yml"
       ],
       "expected_paths": [
         "services/monitor.py"
@@ -189,7 +189,7 @@
       "retrieved_paths": [
         "services/llm.py",
         "services/llm.py",
-        "services/monitor.py"
+        "services/diagnosis.py"
       ],
       "expected_paths": [
         "services/retrieval.py"
@@ -236,7 +236,7 @@
       "question": "How does Sentinel prevent a model from claiming that a fix was applied?",
       "retrieved_paths": [
         "services/llm.py",
-        "services/diagnosis.py",
+        "services/retrieval.py",
         "services/retrieval.py"
       ],
       "expected_paths": [
@@ -251,9 +251,9 @@
       "category": "streaming",
       "question": "Which endpoint streams LLM output to the browser?",
       "retrieved_paths": [
-        "services/diagnosis.py",
         "services/llm.py",
-        "app/victim.py"
+        "app/victim.py",
+        "services/diagnosis.py"
       ],
       "expected_paths": [
         "app/main.py",
@@ -301,9 +301,9 @@
       "category": "safety",
       "question": "What information is recorded when a human approves a remediation handoff?",
       "retrieved_paths": [
-        "services/diagnosis.py",
         "app/victim.py",
-        "app/victim.py"
+        "app/victim.py",
+        "services/llm.py"
       ],
       "expected_paths": [
         "app/main.py",

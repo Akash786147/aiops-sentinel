@@ -5,13 +5,14 @@ import os
 from collections.abc import AsyncIterator
 from pathlib import Path
 
+import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.models import ApprovalRequest, AskRequest
 from app.store import append, recent
-from services.diagnosis import diagnose
+from services.diagnosis import format_diagnosis, incident_question
 from services.llm import answer, stream_answer
 from services.monitor import collect, is_incident
 from services.retrieval import repository_index
@@ -20,6 +21,52 @@ app = FastAPI(title="AIOps Sentinel", version="0.1.0", description="Code-aware m
 WEB_ROOT = Path(__file__).resolve().parents[1] / "web"
 last_diagnosis: dict | None = None
 app.mount("/assets", StaticFiles(directory=WEB_ROOT), name="assets")
+
+
+async def retrieve(question: str, limit: int = 3) -> list[dict]:
+    service_url = os.getenv("RETRIEVAL_SERVICE_URL")
+    if not service_url:
+        return repository_index.search(question, limit=limit, preferred_paths=("app/victim.py", "services/"))
+    async with httpx.AsyncClient(timeout=20) as client:
+        response = await client.get(f"{service_url.rstrip('/')}/search", params={"q": question, "limit": limit})
+        response.raise_for_status()
+        return response.json()["results"]
+
+
+async def model_answer(question: str, evidence: list[dict]) -> dict:
+    service_url = os.getenv("LLM_SERVICE_URL")
+    if not service_url:
+        return await answer(question, evidence)
+    async with httpx.AsyncClient(timeout=None) as client:
+        response = await client.post(f"{service_url.rstrip('/')}/generate", json={"question": question, "context": evidence})
+        response.raise_for_status()
+        return response.json()
+
+
+async def model_events(question: str, evidence: list[dict]) -> AsyncIterator[dict]:
+    service_url = os.getenv("LLM_SERVICE_URL")
+    if not service_url:
+        async for item in stream_answer(question, evidence):
+            yield item
+        return
+    async with httpx.AsyncClient(timeout=None) as client, client.stream(
+        "POST", f"{service_url.rstrip('/')}/generate/stream", json={"question": question, "context": evidence}
+    ) as response:
+        response.raise_for_status()
+        async for line in response.aiter_lines():
+            if line:
+                yield json.loads(line)
+
+
+async def monitor_metrics(target_url: str) -> dict:
+    service_url = os.getenv("MONITOR_SERVICE_URL")
+    if not service_url:
+        metrics = await collect(target_url)
+        return {"metrics": metrics, "incident_detected": is_incident(metrics)}
+    async with httpx.AsyncClient(timeout=20) as client:
+        response = await client.post(f"{service_url.rstrip('/')}/check", params={"target_url": target_url})
+        response.raise_for_status()
+        return response.json()
 
 
 @app.on_event("startup")
@@ -52,8 +99,8 @@ def code_search(q: str, limit: int = 4):
 
 @app.post("/api/ask")
 async def ask(request: AskRequest):
-    evidence = repository_index.search(request.question, limit=3, preferred_paths=("app/victim.py", "services/")) if request.use_rag else []
-    result = await answer(request.question, evidence)
+    evidence = await retrieve(request.question) if request.use_rag else []
+    result = await model_answer(request.question, evidence)
     audit = append("rag_question", {"question": request.question, "rag_enabled": request.use_rag, "engine": result["engine"], "evidence": [{"path": item["path"], "line": item["start_line"]} for item in evidence]})
     return {"question": request.question, "answer": result["answer"], "engine": result["engine"], "llm_error": result.get("llm_error"), "retrieved_evidence": evidence, "audit_id": audit["id"]}
 
@@ -64,11 +111,11 @@ def sse(event: str, payload: dict) -> str:
 
 @app.post("/api/ask/stream")
 async def ask_stream(request: AskRequest):
-    evidence = repository_index.search(request.question, limit=3, preferred_paths=("app/victim.py", "services/")) if request.use_rag else []
+    evidence = await retrieve(request.question) if request.use_rag else []
 
     async def events() -> AsyncIterator[str]:
         yield sse("context", {"engine": "Ollama/qwen2.5-coder:7b", "retrieved_evidence": evidence})
-        async for item in stream_answer(request.question, evidence):
+        async for item in model_events(request.question, evidence):
             if item["type"] == "token":
                 yield sse("token", {"text": item["text"]})
             elif item["type"] == "done":
@@ -83,10 +130,14 @@ async def ask_stream(request: AskRequest):
 @app.post("/api/monitor/check")
 async def monitor_check(target_url: str = os.getenv("VICTIM_URL", "http://localhost:8001")):
     global last_diagnosis
-    metrics = await collect(target_url)
+    monitor_result = await monitor_metrics(target_url)
+    metrics = monitor_result["metrics"]
     audit = append("monitor_snapshot", {"target_url": target_url, "metrics": metrics})
-    if is_incident(metrics):
-        last_diagnosis = await diagnose(metrics)
+    if monitor_result["incident_detected"]:
+        question = incident_question(metrics)
+        evidence = await retrieve(question, limit=5)
+        result = await model_answer(question, evidence)
+        last_diagnosis = format_diagnosis(question, metrics, evidence, result)
         last_diagnosis["audit_id"] = append("incident_diagnosed", last_diagnosis)["id"]
         return {"incident_detected": True, "snapshot_audit_id": audit["id"], "diagnosis": last_diagnosis}
     return {"incident_detected": False, "snapshot_audit_id": audit["id"], "metrics": metrics}

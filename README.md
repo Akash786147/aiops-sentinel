@@ -16,6 +16,12 @@ uvicorn app.main:app --port 8000
 
 Visit `http://localhost:8000`. For the full scripted incident, run `python scripts/simulate_incident.py`, then use the monitoring panel. Or start containers with `docker compose up --build`; this uses the shared Ollama server by default.
 
+Or use the launcher script:
+
+```bash
+sudo ./scripts/run_docker.sh
+```
+
 Run checks with `pytest -q` and `ruff check app services tests scripts`.
 
 ## Model configuration
@@ -30,4 +36,4 @@ By default Sentinel calls `qwen2.5-coder:7b` on the shared Ollama host `http://1
 - `docs/`: charter, exercise evidence, prompts, safety/explainability notes.
 - `.github/workflows/ci.yml`: CI validation with a human-approval policy.
 
-See [the exercise implementation guide](docs/EXERCISES.md), [demo script](docs/DEMO_SCRIPT.md), and [project charter](docs/PROJECT_CHARTER.md).
+See [the workflow and tooling diagram](docs/WORKFLOW.md), [the codebase guide](docs/CODEBASE_GUIDE.md), [the exercise implementation guide](docs/EXERCISES.md), [demo script](docs/DEMO_SCRIPT.md), [full technical report](docs/PROJECT_REPORT.md), and [project charter](docs/PROJECT_CHARTER.md).
