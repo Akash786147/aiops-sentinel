@@ -1,0 +1,43 @@
+groups:
+  - name: sentinel
+    rules:
+      - alert: ServiceDown
+        expr: up{job="services"} == 0
+        for: 30s
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.service }} is not answering its metrics endpoint"
+
+      - alert: HighErrorRate
+        expr: |
+          sum by (service) (rate(http_requests_total{status=~"5.."}[1m]))
+            / sum by (service) (rate(http_requests_total[1m])) > 0.05
+        for: 1m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.service }}: more than 5% of requests fail with 5xx"
+
+      - alert: HighLatencyP95
+        expr: histogram_quantile(0.95, sum by (service, le) (rate(http_request_duration_seconds_bucket[1m]))) > 0.5
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.service }}: p95 latency above 500 ms"
+
+      - alert: ContainerMemoryNearLimit
+        expr: |
+          label_replace(
+            container_memory_working_set_bytes{container_label_sentinel_service!=""}
+              / (container_spec_memory_limit_bytes{container_label_sentinel_service!=""} > 0),
+            "service", "$1", "container_label_sentinel_service", "(.*)") > 0.9
+        for: 30s
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.service }}: memory above 90% of its container limit"
+
+      - alert: HostMemoryLow
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.1
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: "Server has less than 10% memory available"

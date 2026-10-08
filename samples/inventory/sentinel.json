@@ -1,0 +1,12 @@
+{
+  "name": "inventory",
+  "module": "inventory.app:app",
+  "package": "inventory",
+  "port": 8000,
+  "health_path": "/health",
+  "metrics_path": "/sentinel/metrics",
+  "owner": "team-logistics",
+  "shared_code": [
+    "common"
+  ]
+}

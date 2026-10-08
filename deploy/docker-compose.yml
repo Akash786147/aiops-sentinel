@@ -1,0 +1,166 @@
+# AIOps Sentinel on one Ubuntu server.
+#   docker compose -f deploy/docker-compose.yml up -d --build
+# Traefik is the only published port (80). Monitored service containers are started by Sentinel itself
+# (through the Docker socket) on the same "sentinel" network; they are not part of this file.
+
+name: sentinel
+
+x-defaults: &defaults
+  restart: unless-stopped
+  networks: [sentinel]
+  logging:
+    driver: json-file
+    options: {max-size: "10m", max-file: "3"}
+
+services:
+  traefik:
+    <<: *defaults
+    image: traefik:v3.1.6
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=sentinel
+      - --entrypoints.web.address=:80
+      - --ping=true
+      - --accesslog=true
+      - --metrics.prometheus=true
+    ports: ["80:80"]
+    volumes: ["/var/run/docker.sock:/var/run/docker.sock:ro"]
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  sentinel:
+    <<: *defaults
+    build: {context: .., dockerfile: deploy/sentinel.Dockerfile}
+    image: aiops-sentinel:local
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      SENTINEL_RUNTIME: docker
+      SENTINEL_HOME: /srv/sentinel
+      SENTINEL_NETWORK: sentinel
+      SENTINEL_LOKI_URL: http://loki:3100
+      FASTEMBED_CACHE_PATH: /srv/sentinel/cache/fastembed
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /srv/sentinel:/srv/sentinel
+    depends_on: [prometheus, loki]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3).status == 200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.sentinel.rule=PathPrefix(`/`)
+      - traefik.http.routers.sentinel.priority=1
+      - traefik.http.routers.sentinel.entrypoints=web
+      - traefik.http.services.sentinel.loadbalancer.server.port=8000
+
+  prometheus:
+    <<: *defaults
+    image: prom/prometheus:v2.54.1
+    user: root  # reads the Docker socket for service discovery
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --web.external-url=/prometheus/
+      - --web.route-prefix=/prometheus
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - prometheus-data:/prometheus
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.prometheus.rule=PathPrefix(`/prometheus`)
+      - traefik.http.routers.prometheus.entrypoints=web
+      - traefik.http.services.prometheus.loadbalancer.server.port=9090
+
+  alertmanager:
+    <<: *defaults
+    image: prom/alertmanager:v0.27.0
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --web.external-url=/alertmanager/
+      - --web.route-prefix=/alertmanager
+    volumes: ["./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro"]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.alertmanager.rule=PathPrefix(`/alertmanager`)
+      - traefik.http.routers.alertmanager.entrypoints=web
+      - traefik.http.services.alertmanager.loadbalancer.server.port=9093
+
+  cadvisor:
+    <<: *defaults
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    privileged: true
+    devices: ["/dev/kmsg"]
+    command: ["--docker_only=true", "--housekeeping_interval=5s", "--store_container_labels=true"]
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+
+  node-exporter:
+    <<: *defaults
+    image: prom/node-exporter:v1.8.2
+    pid: host
+    command: ["--path.rootfs=/host"]
+    volumes: ["/:/host:ro,rslave"]
+
+  loki:
+    <<: *defaults
+    image: grafana/loki:3.1.1
+    command: ["-config.file=/etc/loki/loki.yml"]
+    volumes:
+      - ./loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki-data:/loki
+
+  promtail:
+    <<: *defaults
+    image: grafana/promtail:3.1.1
+    command: ["-config.file=/etc/promtail/promtail.yml"]
+    volumes:
+      - ./promtail/promtail.yml:/etc/promtail/promtail.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on: [loki]
+
+  grafana:
+    <<: *defaults
+    image: grafana/grafana:11.2.2
+    environment:
+      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s/grafana/"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change-me}
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/sentinel.json
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on: [prometheus, loki]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.grafana.rule=PathPrefix(`/grafana`)
+      - traefik.http.routers.grafana.entrypoints=web
+      - traefik.http.services.grafana.loadbalancer.server.port=3000
+
+networks:
+  sentinel:
+    name: sentinel
+
+volumes:
+  prometheus-data:
+  loki-data:
+  grafana-data:

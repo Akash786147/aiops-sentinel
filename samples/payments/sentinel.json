@@ -1,0 +1,12 @@
+{
+  "name": "payments",
+  "module": "payments.app:app",
+  "package": "payments",
+  "port": 8000,
+  "health_path": "/health",
+  "metrics_path": "/sentinel/metrics",
+  "owner": "team-payments",
+  "shared_code": [
+    "common"
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "uid": "sentinel-overview",
+  "title": "AIOps Sentinel - services",
+  "tags": ["sentinel"],
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": {"from": "now-15m", "to": "now"},
+  "templating": {"list": []},
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "Latency p95 by service (s)",
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [{"refId": "A", "legendFormat": "{{service}}",
+        "expr": "histogram_quantile(0.95, sum by (service, le) (rate(http_request_duration_seconds_bucket[1m])))"}],
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "Requests per second by service",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [{"refId": "A", "legendFormat": "{{service}}",
+        "expr": "sum by (service) (rate(http_requests_total[1m]))"}],
+      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []}
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "5xx error rate by service",
+      "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [{"refId": "A", "legendFormat": "{{service}}",
+        "expr": "sum by (service) (rate(http_requests_total{status=~\"5..\"}[1m])) / sum by (service) (rate(http_requests_total[1m]))"}],
+      "fieldConfig": {"defaults": {"unit": "percentunit", "max": 1, "min": 0}, "overrides": []}
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Container CPU (cores) by service",
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [{"refId": "A", "legendFormat": "{{container_label_sentinel_service}}",
+        "expr": "sum by (container_label_sentinel_service) (rate(container_cpu_usage_seconds_total{container_label_sentinel_service!=\"\"}[1m]))"}],
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []}
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Container memory by service",
+      "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [{"refId": "A", "legendFormat": "{{container_label_sentinel_service}}",
+        "expr": "sum by (container_label_sentinel_service) (container_memory_working_set_bytes{container_label_sentinel_service!=\"\"})"}],
+      "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []}
+    },
+    {
+      "id": 6, "type": "stat", "title": "Open incidents",
+      "gridPos": {"x": 12, "y": 16, "w": 6, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [{"refId": "A", "expr": "sentinel_open_incidents"}],
+      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [
+        {"color": "green", "value": null}, {"color": "red", "value": 1}]}}, "overrides": []}
+    },
+    {
+      "id": 7, "type": "stat", "title": "Auto-rollbacks (incidents resolved by Sentinel)",
+      "gridPos": {"x": 18, "y": 16, "w": 6, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [{"refId": "A", "expr": "sentinel_auto_rollbacks"}]
+    },
+    {
+      "id": 8, "type": "logs", "title": "Service logs (exceptions first)",
+      "gridPos": {"x": 0, "y": 24, "w": 24, "h": 10},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "targets": [{"refId": "A", "expr": "{service=~\".+\"}"}],
+      "options": {"showTime": true, "wrapLogMessage": true, "sortOrder": "Descending"}
+    }
+  ]
+}

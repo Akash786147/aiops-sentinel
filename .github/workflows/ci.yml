@@ -16,7 +16,36 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: "3.12"}
       - run: pip install -r requirements.txt
-      - run: ruff check app services tests scripts sentinel benchmark evaluation
+      - run: ruff check app services tests scripts sentinel benchmark evaluation panel controlplane samples
       - run: pytest -q
       - name: Remediation governance notice
         run: echo "CI validates tests only. A human code reviewer must approve any proposed fix before merge."
+
+  stack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compose file is valid
+        run: |
+          touch .env
+          docker compose -f deploy/docker-compose.yml config -q
+      - name: Lint Dockerfiles
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: deploy/sentinel.Dockerfile
+          ignore: DL3008,DL3013
+      - name: Lint sample Dockerfiles
+        run: |
+          for f in samples/*/Dockerfile; do docker run --rm -i hadolint/hadolint hadolint --ignore DL3008 --ignore DL3013 - < "$f"; done
+      - name: Build the control-plane image
+        run: docker build -f deploy/sentinel.Dockerfile -t aiops-sentinel:ci .
+      - name: Build the sample service images
+        run: |
+          for d in samples/*/; do docker build -t "sentinel-sample-$(basename "$d"):ci" "$d"; done
+      - name: Scan the control-plane image (Trivy)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: aiops-sentinel:ci
+          severity: CRITICAL
+          exit-code: "0"
+          ignore-unfixed: true

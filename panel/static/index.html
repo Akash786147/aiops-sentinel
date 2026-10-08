@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sentinel Console</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b0d12'/%3E%3Ccircle cx='16' cy='16' r='8' fill='none' stroke='%237f8cf0' stroke-width='3'/%3E%3Ccircle cx='21.5' cy='10.5' r='3' fill='%23f08a3c'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<div class="app">
+  <aside class="rail">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><circle cx="16" cy="16" r="9" fill="none" stroke="var(--indigo)" stroke-width="3"/><circle cx="22" cy="10" r="3.4" fill="var(--orange)"/></svg>
+      <div><b>Sentinel</b><span>console</span></div>
+    </div>
+    <nav id="nav"></nav>
+    <div class="rail-foot" id="railfoot"></div>
+  </aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div id="notice"></div>
+    <main id="view"></main>
+  </div>
+</div>
+<script type="module" src="/js/main.js"></script>
+</body>
+</html>

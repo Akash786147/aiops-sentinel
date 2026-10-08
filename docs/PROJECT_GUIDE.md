@@ -407,6 +407,27 @@ runs), `analyze` (about 40 min with an LLM), `analyze-model` for other LLMs, `sc
 `summary.json` / `summary.md`, then `node docs/deck/build_deck.js` to rebuild the slides from those
 numbers.
 
+### Sentinel Console
+
+`python -m panel` serves a local web panel (`http://127.0.0.1:8080`) that shows the shared server, an incident moving through
+detect → packet → trace → test → hand-off, and the measured results. **Replay** re-plays a saved run in about 40 s (safe for a
+demo); **Live** runs the real services, traffic, deployment and pipeline in about 80 s. It is a thin layer over `sentinel/` and
+`benchmark/`: it changes no pipeline behaviour, never edits code, and its Approve button only appends a named audit event.
+Design: [spec](superpowers/specs/2026-10-08-sentinel-console-design.md), plan: [plan](superpowers/plans/2026-10-08-sentinel-console.md).
+
+### Sentinel platform
+
+`controlplane/` turns the pipeline into a running service. It deploys the monitored services itself (Docker on the server,
+plain processes on a laptop), so it knows exactly which version is live and can act. A restart commits the working copy,
+builds it, starts the new instance, and swaps traffic only after a health gate; a failed gate leaves the old instance
+serving. The detector watches crashes, OOM kills, crash loops, failed health checks, memory/CPU guards, latency/error
+regressions against the previous deployment (the `sentinel.detection` method) and Alertmanager alerts. Policy auto-rolls back
+only to the last good version, once per incident; the investigator then runs steps 3�6 on the bad commit and proposes a patch
+that a human approves. State is SQLite. The **Test lab** applies benchmark faults F01�F12 (and crash-on-start, memory-leak,
+CPU-spin recipes) to a monitored service. Operations: [RUNBOOK.md](RUNBOOK.md); design:
+[spec](superpowers/specs/2026-10-09-sentinel-platform-design.md). This goes beyond the evaluated pipeline: the rollback and
+fault-lab behaviour is covered by unit/integration tests, not by the benchmark results in section 8.
+
 ## 11. Team responsibilities
 
 | Member | Owns | Code | Presents |

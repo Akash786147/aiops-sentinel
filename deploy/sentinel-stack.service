@@ -1,0 +1,16 @@
+[Unit]
+Description=AIOps Sentinel platform (docker compose stack)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=__REPO__
+ExecStart=/usr/bin/docker compose -f deploy/docker-compose.yml up -d
+ExecStop=/usr/bin/docker compose -f deploy/docker-compose.yml stop
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target
