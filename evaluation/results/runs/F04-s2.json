@@ -233,34 +233,6 @@
       "latency_s": 10.54,
       "valid": true,
       "invented_ids": []
-    },
-    "hybrid_llm@qwen": {
-      "rank": 1,
-      "file_rank": 1,
-      "top": [
-        "inventory/store.py:21-29",
-        "inventory/store.py:1-9",
-        "inventory/app.py:28-32"
-      ],
-      "prompt_tokens": 1730,
-      "completion_tokens": 288,
-      "latency_s": 1.31,
-      "valid": true,
-      "invented_ids": []
-    },
-    "rag_llm@qwen": {
-      "rank": 1,
-      "file_rank": 1,
-      "top": [
-        "inventory/store.py:21-29",
-        "inventory/store.py:1-9",
-        "inventory/app.py:28-32"
-      ],
-      "prompt_tokens": 1160,
-      "completion_tokens": 225,
-      "latency_s": 27.79,
-      "valid": true,
-      "invented_ids": []
     }
   },
   "exceptions_in_packet": 1

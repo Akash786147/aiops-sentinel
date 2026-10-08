@@ -225,34 +225,6 @@
       "latency_s": 8.54,
       "valid": true,
       "invented_ids": []
-    },
-    "hybrid_llm@qwen": {
-      "rank": 2,
-      "file_rank": 1,
-      "top": [
-        "inventory/cache.py:10-12",
-        "inventory/cache.py:1-7",
-        "inventory/app.py:19-25"
-      ],
-      "prompt_tokens": 1258,
-      "completion_tokens": 231,
-      "latency_s": 15.6,
-      "valid": true,
-      "invented_ids": []
-    },
-    "rag_llm@qwen": {
-      "rank": 2,
-      "file_rank": 1,
-      "top": [
-        "inventory/cache.py:10-12",
-        "inventory/cache.py:1-7",
-        "inventory/cache.py:15-16"
-      ],
-      "prompt_tokens": 925,
-      "completion_tokens": 216,
-      "latency_s": 14.2,
-      "valid": true,
-      "invented_ids": []
     }
   },
   "exceptions_in_packet": 0
