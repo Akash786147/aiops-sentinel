@@ -8,5 +8,6 @@
   "owner": "team-logistics",
   "shared_code": [
     "common"
-  ]
+  ],
+  "lab": true
 }

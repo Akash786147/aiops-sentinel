@@ -5,8 +5,8 @@ service down: the failed deployment is recorded, an incident is opened, and the 
 """
 from __future__ import annotations
 
-import time
 import re
+import time
 from collections.abc import Callable
 from pathlib import Path
 

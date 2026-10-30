@@ -38,7 +38,9 @@ class DockerRuntime:
     def labels(self, spec: ServiceSpec) -> dict[str, str]:
         router = f"svc-{spec.name}"
         return {
-            "sentinel.monitor": "true",
+            # Prometheus scrapes /metrics only where the service provides it (the samples do); every service is routed,
+            # labelled for cAdvisor and logs, and measured at Traefik.
+            "sentinel.monitor": "true" if spec.metrics_path else "false",
             "sentinel.service": spec.name,
             "sentinel.metrics_port": str(spec.port),
             "sentinel.metrics_path": "/metrics",

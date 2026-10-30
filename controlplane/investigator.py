@@ -20,6 +20,7 @@ import time
 from dataclasses import asdict
 from pathlib import Path
 
+from controlplane import packs
 from controlplane.core import Core
 from controlplane.locks import Busy
 from controlplane.runtime.base import ServiceSpec
@@ -46,6 +47,10 @@ the smallest change. Do not touch tests, CI, Dockerfiles or configuration of the
 
 class NotApprovable(RuntimeError):
     """The incident has no patch that can be applied."""
+
+
+class PolicyBlocked(NotApprovable):
+    """The service's policy pack does not permit this approval."""
 
 
 def parse_tracebacks(lines: list[str], repo_files: list[str], service: str, at: float | None = None) -> list[dict]:
@@ -316,6 +321,17 @@ class Investigator:
         return (match.group(1) if match else result.text).strip() + "\n"
 
     # human decisions ------------------------------------------------------------------------
+    def authorise(self, inc: dict, approver: str, confirmed: bool) -> packs.Decision:
+        """Ask the service's policy pack whether this person may approve this patch; the decision is audited either way."""
+        svc = self.core.store.get_service(inc["service"])
+        verdict = packs.for_service(svc).decide("approve_patch", {"approver": approver, "confirming_tests": confirmed})
+        if verdict.decision != "allow" or verdict.pack != "default":
+            self.core.audit(approver or "unknown", "policy_decision", service=inc["service"], incident_id=inc["id"], requested="approve_patch",
+                            **verdict.as_dict())
+        if verdict.decision != "allow":
+            raise PolicyBlocked(f"policy {verdict.pack} v{verdict.version}: {verdict.reason}")
+        return verdict
+
     def approve(self, inc_id: int, approver: str, note: str = "") -> dict:
         store = self.core.store
         inc = store.get_incident(inc_id)
@@ -332,6 +348,7 @@ class Investigator:
             raise NotApprovable("no confirming test passed on the bad and last-good versions")
         if inc["status"] in ("resolved", "dismissed"):
             raise NotApprovable(f"incident is already {inc['status']}")
+        self.authorise(inc, approver, code_confirmed or config_confirmed)
         ws = self.core.workspace(inc["service"])
         with self.core.locks.hold(inc["service"]):
             if has_code_patch and not self._applies(ws, inc["patch"]):

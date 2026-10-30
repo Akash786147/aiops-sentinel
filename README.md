@@ -158,10 +158,25 @@ The Compose command is configured in the Makefile as `docker compose -f deploy/d
 For local process mode without Docker:
 
 ```bash
-SENTINEL_BOOTSTRAP=orders,inventory,payments python -m controlplane --host 127.0.0.1 --port 8800
+python -m controlplane --host 127.0.0.1 --port 8800   # deploys the campus-api environment; add SENTINEL_LAB=1 to offer the synthetic samples
 ```
 
-To disable the generated sample traffic, set `SENTINEL_TRAFFIC=0`. To add another sample or a Git service, use the UI's Add service action. A monitored Git repository needs a Dockerfile and an HTTP app; a `/health` endpoint is used by default. Exposing Prometheus text at `/metrics` enables metric-based monitoring, while lifecycle and resource monitoring can still operate without it.
+Generated traffic goes only to the bundled samples; a cloned Git repository receives none, and the requests you send it (for example with curl through `/svc/<name>/`) are measured at Traefik, so they appear on its Live tab and in Grafana with no change to the app. To disable the generated sample traffic, set `SENTINEL_TRAFFIC=0`. To add another sample or a Git service, use the UI's Add service action. A monitored Git repository needs a Dockerfile and an HTTP app; a `/health` endpoint is used by default. Exposing Prometheus text at `/metrics` enables metric-based monitoring, while lifecycle and resource monitoring can still operate without it.
+
+### Industry environments and independent data
+
+After the review asked for real data and industry relevance, the platform ships **environments backed by real data** and a **data-readiness check**. Study
+guide with every number and command: **[docs/ENVIRONMENTS.md](docs/ENVIRONMENTS.md)**.
+
+- **`campus-api`**: a replay of a real campus application built from an anonymised profile of 126,794 logged requests (endpoint mix, latency curves,
+  status mix, daily load). It is driven with the real daily load curve (compressed). Changes (`slow_gatepass`, `gatepass_error`) are **injected** and labelled
+  as such, so the whole pipeline runs on real traffic shape with a known change time.
+- **Industry policy packs** (`environments/policies/`): versioned SLOs per business journey, who may approve, what may be automatic, what is redacted. They gate the
+  automatic rollback and the Approve button, and show on each service's **Policy** tab. They are demonstration policies, not any organisation's real ones.
+- **Independent evaluation**: `make fetch-data`, then `make eval-rcaeval` (375 real fault-injection cases from Online Boutique, Sock Shop and Train Ticket) and
+  `make eval-microsoft` (60 expert-labelled production series). Results appear on the console's Results page.
+- **Readiness check**: `python -m evaluation.readiness <file>` (or `make readiness FILE=...`) reports which pipeline stages a company's data can support, and why.
+- The console is **light** by default; the button in the top bar switches to dark.
 
 ### Platform operations
 
@@ -186,7 +201,9 @@ Settings are read from the environment; `.env.example` is the template. Common o
 | --- | --- | --- |
 | `SENTINEL_RUNTIME` | `process` | Platform runtime: `process` locally or `docker` in Compose. |
 | `SENTINEL_HOME` | `data/sentinel` under the repo | Platform state root (SQLite, service repositories, builds, runs). |
-| `SENTINEL_BOOTSTRAP` | `orders,inventory,payments` | Comma-separated samples to register at startup. |
+| `SENTINEL_BOOTSTRAP` | `campus-api` (all non-lab samples) | Comma-separated samples to register at startup. |
+| `SENTINEL_LAB` | unset | `1` offers the synthetic lab samples (orders, inventory, payments) in Add service. |
+| `SENTINEL_REPLAY_DAY_S` | `600` | Seconds one replayed day of campus traffic lasts (the real daily load curve, compressed). |
 | `SENTINEL_TRAFFIC` | `1` | Start generated sample traffic at platform startup (`0` disables it). |
 | `SENTINEL_USE_LLM` | `1` | Allow optional LLM investigation steps when credentials are available (`0` disables). |
 | `SENTINEL_DENSE` | `1` | Allow dense embedding retrieval (`0` disables). |
@@ -198,6 +215,7 @@ Settings are read from the environment; `.env.example` is the template. Common o
 | `SENTINEL_DEFAULT_CPUS` | `0.5` | Default managed-service CPU limit. |
 | `SENTINEL_NETWORK` | `sentinel` | Docker network for managed containers. |
 | `SENTINEL_LOKI_URL` | unset | Loki endpoint for log enrichment (Compose sets it). |
+| `SENTINEL_PROMETHEUS_API` | unset | Prometheus API used to read Traefik's per-service request metrics for services without their own telemetry (Compose sets it). |
 | `OPENAI_API_KEY` | unset | OpenAI credentials; selected by default when present. |
 | `OPENAI_MODEL` | adapter default | OpenAI model override. |
 | `OPENAI_REASONING_EFFORT` | `medium` | OpenAI reasoning effort setting. |
@@ -264,6 +282,11 @@ To regenerate the benchmark result files, follow [`evaluation/README.md`](evalua
 - [Project Guide](docs/PROJECT_GUIDE.md): research questions, detailed methods, evaluation design/results, limits, team ownership.
 - [Workflow](docs/WORKFLOW.md): stage-by-stage operational flow and owners.
 - [Runbook](docs/RUNBOOK.md): platform installation, operation, incident demo, troubleshooting, and uninstall.
+- [Industry environments](docs/ENVIRONMENTS.md): study guide for the real-data environments, policy packs, independent evaluation, readiness check and how to run it all on a new server.
+- [Project status](docs/PROJECT_STATUS.md): what is done, what is left, future scope.
+- [Individual work](docs/INDIVIDUAL_WORK.md): each member's part and the questions to expect.
+- [Review response](docs/REVIEW_RESPONSE.md): answers to reviewers' comments, confidence intervals, trade-offs, related work.
+- [Research comparison](docs/RESEARCH_COMPARISON.md): how Sentinel relates to RCACopilot, in-context GPT-4 RCA, LLM agents and Meta's just-in-time tests.
 - [Demo script](docs/DEMO_SCRIPT.md): suggested walkthrough.
 - [Exercises](docs/EXERCISES.md): project learning exercises.
 - [Responsible AI and prompts](docs/PROMPTS_AND_RESPONSIBLE_AI.md): prompt and safety discussion.

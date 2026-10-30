@@ -13,8 +13,10 @@ affected, gathers the evidence (telemetry, exceptions, what was just deployed), 
 **semantic code search and retrieval-augmented reasoning** to trace the symptom back to the
 **actual function** that causes it, and **generates a test that proves it**: the test must fail
 on the deployed code and pass once the cause is reverted. Every decision is written to an audit
-trail, and a human approves any change. Steps 7–10 (fix proposal, PR, CI/CD rollout, post-deploy
-watch) are designed but deliberately not automated yet.
+trail, and a human approves any change. The research pipeline stops there. The **platform** (`controlplane/`, described under section 10) goes further: it runs the
+services itself, rolls back a crashed or out-of-memory service to its last good version, and proposes a patch that a person
+approves. Status, what is left and future scope: [PROJECT_STATUS.md](PROJECT_STATUS.md). Individual parts:
+[INDIVIDUAL_WORK.md](INDIVIDUAL_WORK.md). Responses to reviewers' comments: [REVIEW_RESPONSE.md](REVIEW_RESPONSE.md).
 
 ## 2. Research question and hypotheses
 
@@ -218,8 +220,8 @@ becomes the regression test of the eventual fix.
 
 `sentinel/audit.py` appends one JSON event per stage (`detect`, `context`, `trace`, `test`,
 `handoff`) with incident id, decision, confidence, packet digest, model, prompt version, tokens and
-test outcomes. Sentinel never edits code, restarts or scales anything; the final event is always
-`awaiting human approval`.
+test outcomes. In the research pipeline Sentinel never edits code, restarts or scales anything; the final event is always
+`awaiting human approval`. The platform adds exactly one automatic action (rollback to the last good version) and audits it.
 
 ## 6. Tools at a glance
 
@@ -398,7 +400,8 @@ that was not detected.
   test results are seed 0 only. Only two LLMs were compared. A different prompt could change every LLM number.
 * **Known-good = the fault commit reverted.** In production it is the previous deployment (`deploy-prev`);
   a bug that was always there has no known-good version.
-* **Steps 7–10 are not evaluated** (fix proposal, draft PR, CI/CD rollout, post-deploy watch).
+* **Steps 7–10 are not evaluated.** The platform implements the fix proposal, deployment, health gate and rollback, but it is
+  covered by unit and integration tests, not by the benchmark. Draft PRs, push-triggered deploys and canary releases are not built.
 
 ## 10. How to reproduce
 
@@ -422,8 +425,8 @@ plain processes on a laptop), so it knows exactly which version is live and can 
 builds it, starts the new instance, and swaps traffic only after a health gate; a failed gate leaves the old instance
 serving. The detector watches crashes, OOM kills, crash loops, failed health checks, memory/CPU guards, latency/error
 regressions against the previous deployment (the `sentinel.detection` method) and Alertmanager alerts. Policy auto-rolls back
-only to the last good version, once per incident; the investigator then runs steps 3�6 on the bad commit and proposes a patch
-that a human approves. State is SQLite. The **Test lab** applies benchmark faults F01�F12 (and crash-on-start, memory-leak,
+only to the last good version, once per incident; the investigator then runs steps 3–6 on the bad commit and proposes a patch
+that a human approves. State is SQLite. The **Test lab** applies benchmark faults F01–F12 (and crash-on-start, memory-leak,
 CPU-spin recipes) to a monitored service. Operations: [RUNBOOK.md](RUNBOOK.md); design:
 [spec](superpowers/specs/2026-10-09-sentinel-platform-design.md). This goes beyond the evaluated pipeline: the rollback and
 fault-lab behaviour is covered by unit/integration tests, not by the benchmark results in section 8.

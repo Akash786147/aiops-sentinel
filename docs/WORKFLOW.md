@@ -43,10 +43,10 @@ flowchart TB
 | 4 | Code index: AST function chunks, routes, call graph, BM25, dense embeddings | Aryan | `ast`, own BM25, fastembed + BAAI/bge-small-en-v1.5 | Built |
 | 5 | Trace: hybrid 7-feature ranking scoped to the tenant; LLM re-rank with id validation; action decision | Aryan | OpenAI gpt-5.4-mini (Groq gpt-oss-120b compared) | Built + evaluated |
 | 6 | Confirming test: template + LLM generators, AST guard, sandbox run on faulty and known-good code | Syna | pytest, JUnit XML, subprocess sandbox | Built + evaluated |
-| 7 | Bounded fix proposal (diff, rationale, risk, rollback) | Team | — | Designed |
-| 8 | Draft PR, CI validation including the confirming test, approval gate | Team | GitHub Actions (CI exists: ruff + pytest) | Partly (CI only) |
+| 7 | Bounded fix proposal (diff, rationale, risk, rollback) | Team | `git apply --check`, git | Built in the platform (LLM diff or revert of the suspect files; a person approves); not part of the benchmark evaluation |
+| 8 | Deploy, CI validation, approval gate | Team | Docker, Compose, Traefik, GitHub Actions (ruff, pytest, hadolint, Trivy, compose validation) | Built in the platform: build, health gate, swap, rollback, post-deploy regression watch. Not built: draft PR, push-triggered deploys, canary |
 | 9 | Audit trail of every decision | Team | JSON Lines | Built |
-| 10 | Guardrails: tenant scope, redaction, JSON-only LLM output, test guard, sandbox, no write access, human approval | Team | — | Built (for steps 1–6) |
+| 10 | Guardrails: tenant scope, redaction, JSON-only LLM output, test guard, sandbox, bounded automatic action, human approval | Team | — | Built (steps 1–6 and the platform) |
 
 ## Production mapping
 
@@ -62,4 +62,5 @@ flowchart TB
 ## Operating rule
 
 Evidence can inform an incident response; it cannot authorise one. Sentinel may monitor, retrieve,
-explain, test and record. A named owner approves any change.
+explain, test and record, and it may roll a crashed or out-of-memory service back to its last healthy version. A named owner
+approves any code change.

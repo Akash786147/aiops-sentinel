@@ -1,0 +1,1722 @@
+{
+ "source": {
+  "name": "Unisphere campus API request log",
+  "requests": 126794,
+  "days": 9,
+  "note": "Aggregated: no tokens, emails, user ids or payloads. Traffic shape and latency are real; any change in a replay deployment is injected."
+ },
+ "other_share": 0.002066,
+ "curve_quantiles": [
+  0,
+  10,
+  25,
+  50,
+  75,
+  90,
+  95,
+  99,
+  99.9,
+  99.99,
+  100
+ ],
+ "endpoints": [
+  {
+   "key": "GET /api/v2/user/me",
+   "method": "GET",
+   "path": "/api/v2/user/me",
+   "journey": "account",
+   "share": 0.24157525369076596,
+   "requests": 30567,
+   "status": {
+    "200": 0.6235,
+    "401": 0.3765
+   },
+   "latency_ms": {
+    "p50": 4.0,
+    "p90": 5.0,
+    "p95": 6.0,
+    "p99": 10.0,
+    "max": 32.0,
+    "curve": [
+     1.0,
+     1.0,
+     2.0,
+     4.0,
+     4.0,
+     5.0,
+     6.0,
+     10.0,
+     12.0,
+     14.0,
+     32.0
+    ]
+   }
+  },
+  {
+   "key": "POST /api/v2/auth/is-alive",
+   "method": "POST",
+   "path": "/api/v2/auth/is-alive",
+   "journey": "auth",
+   "share": 0.23826383839661114,
+   "requests": 30148,
+   "status": {
+    "201": 0.8728,
+    "200": 0.1105,
+    "401": 0.0167
+   },
+   "latency_ms": {
+    "p50": 1.0,
+    "p90": 2.0,
+    "p95": 2.0,
+    "p99": 2.0,
+    "max": 7.0,
+    "curve": [
+     0.0,
+     1.0,
+     1.0,
+     1.0,
+     2.0,
+     2.0,
+     2.0,
+     2.0,
+     2.0,
+     3.0,
+     7.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/menu",
+   "method": "GET",
+   "path": "/api/v2/menu",
+   "journey": "app",
+   "share": 0.09258527487117883,
+   "requests": 11715,
+   "status": {
+    "200": 0.9892,
+    "401": 0.0108
+   },
+   "latency_ms": {
+    "p50": 7.0,
+    "p90": 8.0,
+    "p95": 12.0,
+    "p99": 14.0,
+    "max": 51.0,
+    "curve": [
+     1.0,
+     6.0,
+     6.0,
+     7.0,
+     7.0,
+     8.0,
+     12.0,
+     14.0,
+     17.0,
+     21.0,
+     51.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/gatepass/all",
+   "method": "GET",
+   "path": "/api/v2/gatepass/all",
+   "journey": "gatepass",
+   "share": 0.08587550975247368,
+   "requests": 10866,
+   "status": {
+    "200": 0.9755,
+    "401": 0.0184,
+    "400": 0.0061
+   },
+   "latency_ms": {
+    "p50": 6.0,
+    "p90": 12.0,
+    "p95": 13.0,
+    "p99": 28.0,
+    "max": 51.0,
+    "curve": [
+     0.0,
+     5.0,
+     6.0,
+     6.0,
+     9.0,
+     12.0,
+     13.0,
+     28.0,
+     35.0,
+     42.0,
+     51.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/gatepass",
+   "method": "GET",
+   "path": "/api/v2/gatepass",
+   "journey": "gatepass",
+   "share": 0.0775614073910157,
+   "requests": 9814,
+   "status": {
+    "200": 0.9884,
+    "401": 0.0116
+   },
+   "latency_ms": {
+    "p50": 4.0,
+    "p90": 5.0,
+    "p95": 10.0,
+    "p99": 11.0,
+    "max": 80.0,
+    "curve": [
+     1.0,
+     3.0,
+     4.0,
+     4.0,
+     4.0,
+     5.0,
+     10.0,
+     11.0,
+     12.0,
+     13.0,
+     80.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/app",
+   "method": "GET",
+   "path": "/api/v2/app",
+   "journey": "app",
+   "share": 0.07508772484430816,
+   "requests": 9501,
+   "status": {
+    "200": 1.0
+   },
+   "latency_ms": {
+    "p50": 1.0,
+    "p90": 7.0,
+    "p95": 7.0,
+    "p99": 8.0,
+    "max": 29.0,
+    "curve": [
+     0.0,
+     1.0,
+     1.0,
+     1.0,
+     6.0,
+     7.0,
+     7.0,
+     8.0,
+     9.0,
+     27.0,
+     29.0
+    ]
+   }
+  },
+  {
+   "key": "POST /api/v2/biometric/punch",
+   "method": "POST",
+   "path": "/api/v2/biometric/punch",
+   "journey": "biometric",
+   "share": 0.041372933329118323,
+   "requests": 5235,
+   "status": {
+    "200": 0.9914,
+    "400": 0.0086
+   },
+   "latency_ms": {
+    "p50": 1.0,
+    "p90": 2.0,
+    "p95": 2.0,
+    "p99": 3.0,
+    "max": 8.0,
+    "curve": [
+     0.0,
+     1.0,
+     1.0,
+     1.0,
+     2.0,
+     2.0,
+     2.0,
+     3.0,
+     8.0,
+     8.0,
+     8.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/shuttle",
+   "method": "GET",
+   "path": "/api/v2/shuttle",
+   "journey": "shuttle",
+   "share": 0.028633073056618087,
+   "requests": 3623,
+   "status": {
+    "200": 0.9865,
+    "401": 0.0135
+   },
+   "latency_ms": {
+    "p50": 5.0,
+    "p90": 7.0,
+    "p95": 11.0,
+    "p99": 14.0,
+    "max": 224.0,
+    "curve": [
+     1.0,
+     4.0,
+     5.0,
+     5.0,
+     6.0,
+     7.0,
+     11.0,
+     14.0,
+     18.0,
+     224.0,
+     224.0
+    ]
+   }
+  },
+  {
+   "key": "PUT /api/v2/gatepass/status",
+   "method": "PUT",
+   "path": "/api/v2/gatepass/status",
+   "journey": "gatepass",
+   "share": 0.019299465747795026,
+   "requests": 2442,
+   "status": {
+    "200": 0.9984,
+    "400": 0.0008,
+    "401": 0.0008
+   },
+   "latency_ms": {
+    "p50": 15.0,
+    "p90": 158.0,
+    "p95": 181.0,
+    "p99": 1292.0,
+    "max": 1710.0,
+    "curve": [
+     2.0,
+     7.0,
+     11.0,
+     15.0,
+     122.0,
+     158.0,
+     181.0,
+     1292.0,
+     1656.0,
+     1710.0,
+     1710.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/fest-events",
+   "method": "GET",
+   "path": "/api/v2/fest-events",
+   "journey": "events",
+   "share": 0.016375304270856383,
+   "requests": 2072,
+   "status": {
+    "200": 0.8726,
+    "401": 0.1274
+   },
+   "latency_ms": {
+    "p50": 10.0,
+    "p90": 48.0,
+    "p95": 53.0,
+    "p99": 77.0,
+    "max": 431.0,
+    "curve": [
+     0.0,
+     2.0,
+     4.0,
+     10.0,
+     41.0,
+     48.0,
+     53.0,
+     77.0,
+     87.0,
+     431.0,
+     431.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/shuttle-ticket/tickets",
+   "method": "GET",
+   "path": "/api/v2/shuttle-ticket/tickets",
+   "journey": "shuttle",
+   "share": 0.008527487117883223,
+   "requests": 1079,
+   "status": {
+    "200": 0.9944,
+    "401": 0.0056
+   },
+   "latency_ms": {
+    "p50": 4.0,
+    "p90": 6.0,
+    "p95": 9.0,
+    "p99": 12.0,
+    "max": 13.0,
+    "curve": [
+     1.0,
+     3.0,
+     4.0,
+     4.0,
+     5.0,
+     6.0,
+     9.0,
+     12.0,
+     13.0,
+     13.0,
+     13.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/auth/google",
+   "method": "GET",
+   "path": "/api/v2/auth/google",
+   "journey": "auth",
+   "share": 0.007895235987734329,
+   "requests": 999,
+   "status": {
+    "200": 1.0
+   },
+   "latency_ms": {
+    "p50": 0.0,
+    "p90": 1.0,
+    "p95": 1.0,
+    "p99": 1.0,
+    "max": 1.0,
+    "curve": [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ]
+   }
+  },
+  {
+   "key": "POST /api/v2/gatepass",
+   "method": "POST",
+   "path": "/api/v2/gatepass",
+   "journey": "gatepass",
+   "share": 0.007349919387980906,
+   "requests": 930,
+   "status": {
+    "200": 0.9957,
+    "400": 0.0043
+   },
+   "latency_ms": {
+    "p50": 165.0,
+    "p90": 326.0,
+    "p95": 340.0,
+    "p99": 946.0,
+    "max": 2416.0,
+    "curve": [
+     0.0,
+     13.0,
+     137.0,
+     165.0,
+     193.0,
+     326.0,
+     340.0,
+     946.0,
+     2308.0,
+     2416.0,
+     2416.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/found/all",
+   "method": "GET",
+   "path": "/api/v2/found/all",
+   "journey": "other",
+   "share": 0.007081212657667626,
+   "requests": 896,
+   "status": {
+    "200": 0.9933,
+    "401": 0.0067
+   },
+   "latency_ms": {
+    "p50": 4.0,
+    "p90": 9.0,
+    "p95": 10.0,
+    "p99": 11.0,
+    "max": 12.0,
+    "curve": [
+     2.0,
+     3.0,
+     3.0,
+     4.0,
+     4.0,
+     9.0,
+     10.0,
+     11.0,
+     12.0,
+     12.0,
+     12.0
+    ]
+   }
+  },
+  {
+   "key": "PUT /api/v2/uploads",
+   "method": "PUT",
+   "path": "/api/v2/uploads",
+   "journey": "other",
+   "share": 0.005895741788638447,
+   "requests": 746,
+   "status": {
+    "200": 0.996,
+    "401": 0.004
+   },
+   "latency_ms": {
+    "p50": 3.0,
+    "p90": 9.0,
+    "p95": 10.0,
+    "p99": 10.0,
+    "max": 18.0,
+    "curve": [
+     1.0,
+     2.0,
+     3.0,
+     3.0,
+     9.0,
+     9.0,
+     10.0,
+     10.0,
+     18.0,
+     18.0,
+     18.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/warden",
+   "method": "GET",
+   "path": "/api/v2/warden",
+   "journey": "other",
+   "share": 0.00512123415420605,
+   "requests": 648,
+   "status": {
+    "200": 0.9954,
+    "401": 0.0046
+   },
+   "latency_ms": {
+    "p50": 4.0,
+    "p90": 9.0,
+    "p95": 10.0,
+    "p99": 11.0,
+    "max": 19.0,
+    "curve": [
+     1.0,
+     3.0,
+     3.0,
+     4.0,
+     4.0,
+     9.0,
+     10.0,
+     11.0,
+     13.0,
+     19.0,
+     19.0
+    ]
+   }
+  },
+  {
+   "key": "POST /api/v2/auth/login",
+   "method": "POST",
+   "path": "/api/v2/auth/login",
+   "journey": "auth",
+   "share": 0.003374640407169728,
+   "requests": 427,
+   "status": {
+    "200": 0.5972,
+    "403": 0.2951,
+    "404": 0.0562,
+    "400": 0.0375,
+    "500": 0.0141
+   },
+   "latency_ms": {
+    "p50": 79.0,
+    "p90": 85.0,
+    "p95": 87.0,
+    "p99": 212.0,
+    "max": 1021.0,
+    "curve": [
+     0.0,
+     8.0,
+     77.0,
+     79.0,
+     83.0,
+     85.0,
+     87.0,
+     212.0,
+     1021.0,
+     1021.0,
+     1021.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/lost/all",
+   "method": "GET",
+   "path": "/api/v2/lost/all",
+   "journey": "other",
+   "share": 0.003177061928998198,
+   "requests": 402,
+   "status": {
+    "200": 0.995,
+    "401": 0.005
+   },
+   "latency_ms": {
+    "p50": 4.0,
+    "p90": 9.0,
+    "p95": 10.0,
+    "p99": 10.0,
+    "max": 11.0,
+    "curve": [
+     2.0,
+     3.0,
+     3.0,
+     4.0,
+     4.0,
+     9.0,
+     10.0,
+     10.0,
+     11.0,
+     11.0,
+     11.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/logs/all",
+   "method": "GET",
+   "path": "/api/v2/logs/all",
+   "journey": "admin",
+   "share": 0.0027502924161476937,
+   "requests": 348,
+   "status": {
+    "200": 0.9741,
+    "401": 0.0259
+   },
+   "latency_ms": {
+    "p50": 41.0,
+    "p90": 55.0,
+    "p95": 169.0,
+    "p99": 485.0,
+    "max": 737.0,
+    "curve": [
+     1.0,
+     4.0,
+     27.0,
+     41.0,
+     47.0,
+     55.0,
+     169.0,
+     485.0,
+     737.0,
+     737.0,
+     737.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/participants/profile",
+   "method": "GET",
+   "path": "/api/v2/participants/profile",
+   "journey": "events",
+   "share": 0.002560617077103025,
+   "requests": 324,
+   "status": {
+    "200": 1.0
+   },
+   "latency_ms": {
+    "p50": 5.0,
+    "p90": 6.0,
+    "p95": 6.0,
+    "p99": 7.0,
+    "max": 12.0,
+    "curve": [
+     2.0,
+     3.0,
+     4.0,
+     5.0,
+     5.0,
+     6.0,
+     6.0,
+     7.0,
+     12.0,
+     12.0,
+     12.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/participants",
+   "method": "GET",
+   "path": "/api/v2/participants",
+   "journey": "events",
+   "share": 0.002339329181550912,
+   "requests": 296,
+   "status": {
+    "200": 0.8649,
+    "401": 0.1149,
+    "400": 0.0203
+   },
+   "latency_ms": {
+    "p50": 21.0,
+    "p90": 38.0,
+    "p95": 44.0,
+    "p99": 68.0,
+    "max": 163.0,
+    "curve": [
+     0.0,
+     6.0,
+     11.0,
+     21.0,
+     28.0,
+     38.0,
+     44.0,
+     68.0,
+     163.0,
+     163.0,
+     163.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/fest-registrations",
+   "method": "GET",
+   "path": "/api/v2/fest-registrations",
+   "journey": "events",
+   "share": 0.00232352290329719,
+   "requests": 294,
+   "status": {
+    "200": 0.7347,
+    "404": 0.1633,
+    "401": 0.102
+   },
+   "latency_ms": {
+    "p50": 18.0,
+    "p90": 29.0,
+    "p95": 32.0,
+    "p99": 36.0,
+    "max": 41.0,
+    "curve": [
+     1.0,
+     4.0,
+     6.0,
+     18.0,
+     23.0,
+     29.0,
+     32.0,
+     36.0,
+     41.0,
+     41.0,
+     41.0
+    ]
+   }
+  },
+  {
+   "key": "POST /api/v2/fcm/token",
+   "method": "POST",
+   "path": "/api/v2/fcm/token",
+   "journey": "other",
+   "share": 0.0022049758163942717,
+   "requests": 279,
+   "status": {
+    "200": 0.9749,
+    "201": 0.0215,
+    "401": 0.0036
+   },
+   "latency_ms": {
+    "p50": 4.0,
+    "p90": 5.0,
+    "p95": 5.0,
+    "p99": 6.0,
+    "max": 6.0,
+    "curve": [
+     0.0,
+     4.0,
+     4.0,
+     4.0,
+     5.0,
+     5.0,
+     5.0,
+     6.0,
+     6.0,
+     6.0,
+     6.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/logs/status",
+   "method": "GET",
+   "path": "/api/v2/logs/status",
+   "journey": "admin",
+   "share": 0.0019520753643347138,
+   "requests": 247,
+   "status": {
+    "200": 1.0
+   },
+   "latency_ms": {
+    "p50": 13.0,
+    "p90": 18.0,
+    "p95": 19.0,
+    "p99": 21.0,
+    "max": 38.0,
+    "curve": [
+     9.0,
+     11.0,
+     11.0,
+     13.0,
+     18.0,
+     18.0,
+     19.0,
+     21.0,
+     38.0,
+     38.0,
+     38.0
+    ]
+   }
+  },
+  {
+   "key": "POST /api/v2/shuttle-ticket/checkout",
+   "method": "POST",
+   "path": "/api/v2/shuttle-ticket/checkout",
+   "journey": "shuttle",
+   "share": 0.001628046660133405,
+   "requests": 206,
+   "status": {
+    "201": 0.9563,
+    "400": 0.0437
+   },
+   "latency_ms": {
+    "p50": 19.0,
+    "p90": 28.0,
+    "p95": 29.0,
+    "p99": 34.0,
+    "max": 37.0,
+    "curve": [
+     4.0,
+     17.0,
+     18.0,
+     19.0,
+     20.0,
+     28.0,
+     29.0,
+     34.0,
+     37.0,
+     37.0,
+     37.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/shuttle-ticket/redirect",
+   "method": "GET",
+   "path": "/api/v2/shuttle-ticket/redirect",
+   "journey": "shuttle",
+   "share": 0.0016122403818796826,
+   "requests": 204,
+   "status": {
+    "200": 1.0
+   },
+   "latency_ms": {
+    "p50": 2.0,
+    "p90": 3.0,
+    "p95": 3.0,
+    "p99": 9.0,
+    "max": 10.0,
+    "curve": [
+     2.0,
+     2.0,
+     2.0,
+     2.0,
+     3.0,
+     3.0,
+     3.0,
+     9.0,
+     10.0,
+     10.0,
+     10.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/hostels",
+   "method": "GET",
+   "path": "/api/v2/hostels",
+   "journey": "other",
+   "share": 0.001588530964499099,
+   "requests": 201,
+   "status": {
+    "200": 0.8408,
+    "401": 0.1592
+   },
+   "latency_ms": {
+    "p50": 3.0,
+    "p90": 9.0,
+    "p95": 10.0,
+    "p99": 227.0,
+    "max": 471.0,
+    "curve": [
+     1.0,
+     2.0,
+     2.0,
+     3.0,
+     5.0,
+     9.0,
+     10.0,
+     227.0,
+     471.0,
+     471.0,
+     471.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/discussion",
+   "method": "GET",
+   "path": "/api/v2/discussion",
+   "journey": "other",
+   "share": 0.00146208073846932,
+   "requests": 185,
+   "status": {
+    "200": 1.0
+   },
+   "latency_ms": {
+    "p50": 5.0,
+    "p90": 11.0,
+    "p95": 11.0,
+    "p99": 11.0,
+    "max": 12.0,
+    "curve": [
+     3.0,
+     4.0,
+     4.0,
+     5.0,
+     5.0,
+     11.0,
+     11.0,
+     11.0,
+     12.0,
+     12.0,
+     12.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/found",
+   "method": "GET",
+   "path": "/api/v2/found",
+   "journey": "other",
+   "share": 0.0014383713210887365,
+   "requests": 182,
+   "status": {
+    "200": 1.0
+   },
+   "latency_ms": {
+    "p50": 4.0,
+    "p90": 5.0,
+    "p95": 10.0,
+    "p99": 10.0,
+    "max": 11.0,
+    "curve": [
+     2.0,
+     3.0,
+     3.0,
+     4.0,
+     4.0,
+     5.0,
+     10.0,
+     10.0,
+     11.0,
+     11.0,
+     11.0
+    ]
+   }
+  },
+  {
+   "key": "PUT /api/v2/shuttle-ticket/status",
+   "method": "PUT",
+   "path": "/api/v2/shuttle-ticket/status",
+   "journey": "shuttle",
+   "share": 0.001209180286409762,
+   "requests": 153,
+   "status": {
+    "200": 1.0
+   },
+   "latency_ms": {
+    "p50": 4.0,
+    "p90": 4.0,
+    "p95": 5.0,
+    "p99": 10.0,
+    "max": 10.0,
+    "curve": [
+     3.0,
+     3.0,
+     3.0,
+     4.0,
+     4.0,
+     4.0,
+     5.0,
+     10.0,
+     10.0,
+     10.0,
+     10.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/shuttle-ticket/status",
+   "method": "GET",
+   "path": "/api/v2/shuttle-ticket/status",
+   "journey": "shuttle",
+   "share": 0.0010590206429993993,
+   "requests": 134,
+   "status": {
+    "200": 1.0
+   },
+   "latency_ms": {
+    "p50": 3.0,
+    "p90": 10.0,
+    "p95": 10.0,
+    "p99": 10.0,
+    "max": 11.0,
+    "curve": [
+     2.0,
+     2.0,
+     3.0,
+     3.0,
+     9.0,
+     10.0,
+     10.0,
+     10.0,
+     11.0,
+     11.0,
+     11.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/finance/shuttle-data",
+   "method": "GET",
+   "path": "/api/v2/finance/shuttle-data",
+   "journey": "other",
+   "share": 0.0009878923908576487,
+   "requests": 125,
+   "status": {
+    "200": 0.984,
+    "401": 0.016
+   },
+   "latency_ms": {
+    "p50": 5.0,
+    "p90": 7.0,
+    "p95": 11.0,
+    "p99": 13.0,
+    "max": 13.0,
+    "curve": [
+     2.0,
+     5.0,
+     5.0,
+     5.0,
+     6.0,
+     7.0,
+     11.0,
+     13.0,
+     13.0,
+     13.0,
+     13.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/students",
+   "method": "GET",
+   "path": "/api/v2/students",
+   "journey": "other",
+   "share": 0.0009641829734770651,
+   "requests": 122,
+   "status": {
+    "200": 0.9672,
+    "401": 0.0328
+   },
+   "latency_ms": {
+    "p50": 17.0,
+    "p90": 19.0,
+    "p95": 19.0,
+    "p99": 26.0,
+    "max": 86.0,
+    "curve": [
+     1.0,
+     10.0,
+     16.0,
+     17.0,
+     18.0,
+     19.0,
+     19.0,
+     26.0,
+     86.0,
+     86.0,
+     86.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/rooms",
+   "method": "GET",
+   "path": "/api/v2/rooms",
+   "journey": "other",
+   "share": 0.000916764138715898,
+   "requests": 116,
+   "status": {
+    "200": 0.8276,
+    "401": 0.1724
+   },
+   "latency_ms": {
+    "p50": 10.0,
+    "p90": 26.0,
+    "p95": 29.0,
+    "p99": 36.0,
+    "max": 46.0,
+    "curve": [
+     1.0,
+     4.0,
+     6.0,
+     10.0,
+     22.0,
+     26.0,
+     29.0,
+     36.0,
+     46.0,
+     46.0,
+     46.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/logs/campus",
+   "method": "GET",
+   "path": "/api/v2/logs/campus",
+   "journey": "admin",
+   "share": 0.0007824107735592578,
+   "requests": 99,
+   "status": {
+    "200": 1.0
+   },
+   "latency_ms": {
+    "p50": 7.0,
+    "p90": 13.0,
+    "p95": 17.0,
+    "p99": 203.0,
+    "max": 205.0,
+    "curve": [
+     6.0,
+     7.0,
+     7.0,
+     7.0,
+     10.0,
+     13.0,
+     17.0,
+     203.0,
+     205.0,
+     205.0,
+     205.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/logs/stats",
+   "method": "GET",
+   "path": "/api/v2/logs/stats",
+   "journey": "admin",
+   "share": 0.0007666044953055353,
+   "requests": 97,
+   "status": {
+    "200": 0.8557,
+    "401": 0.1443
+   },
+   "latency_ms": {
+    "p50": 5.0,
+    "p90": 10.0,
+    "p95": 13.0,
+    "p99": 16.0,
+    "max": 17.0,
+    "curve": [
+     1.0,
+     3.0,
+     4.0,
+     5.0,
+     6.0,
+     10.0,
+     13.0,
+     16.0,
+     17.0,
+     17.0,
+     17.0
+    ]
+   }
+  },
+  {
+   "key": "POST /api/v2/fest-registrations",
+   "method": "POST",
+   "path": "/api/v2/fest-registrations",
+   "journey": "events",
+   "share": 0.0007191856605443682,
+   "requests": 91,
+   "status": {
+    "200": 0.5055,
+    "400": 0.3736,
+    "201": 0.1209
+   },
+   "latency_ms": {
+    "p50": 7.0,
+    "p90": 23.0,
+    "p95": 102.0,
+    "p99": 325.0,
+    "max": 406.0,
+    "curve": [
+     4.0,
+     5.0,
+     5.0,
+     7.0,
+     12.0,
+     23.0,
+     102.0,
+     325.0,
+     406.0,
+     406.0,
+     406.0
+    ]
+   }
+  },
+  {
+   "key": "PUT /api/v2/participants/profile",
+   "method": "PUT",
+   "path": "/api/v2/participants/profile",
+   "journey": "events",
+   "share": 0.0006322511301488951,
+   "requests": 80,
+   "status": {
+    "200": 0.9875,
+    "401": 0.0125
+   },
+   "latency_ms": {
+    "p50": 8.0,
+    "p90": 14.0,
+    "p95": 15.0,
+    "p99": 15.0,
+    "max": 15.0,
+    "curve": [
+     2.0,
+     7.0,
+     8.0,
+     8.0,
+     14.0,
+     14.0,
+     15.0,
+     15.0,
+     15.0,
+     15.0,
+     15.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/finance/transactions",
+   "method": "GET",
+   "path": "/api/v2/finance/transactions",
+   "journey": "other",
+   "share": 0.0005532197388802832,
+   "requests": 70,
+   "status": {
+    "200": 0.9143,
+    "401": 0.0857
+   },
+   "latency_ms": {
+    "p50": 14.0,
+    "p90": 17.0,
+    "p95": 30.0,
+    "p99": 32.0,
+    "max": 41.0,
+    "curve": [
+     1.0,
+     7.0,
+     8.0,
+     14.0,
+     16.0,
+     17.0,
+     30.0,
+     32.0,
+     41.0,
+     41.0,
+     41.0
+    ]
+   }
+  },
+  {
+   "key": "POST /api/v2/auth/verifyResetPasswordOTP",
+   "method": "POST",
+   "path": "/api/v2/auth/verifyResetPasswordOTP",
+   "journey": "auth",
+   "share": 0.0005453165997534221,
+   "requests": 69,
+   "status": {
+    "200": 0.6377,
+    "400": 0.2899,
+    "500": 0.0725
+   },
+   "latency_ms": {
+    "p50": 3.0,
+    "p90": 9.0,
+    "p95": 10.0,
+    "p99": 10.0,
+    "max": 10.0,
+    "curve": [
+     1.0,
+     1.0,
+     2.0,
+     3.0,
+     4.0,
+     9.0,
+     10.0,
+     10.0,
+     10.0,
+     10.0,
+     10.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/user",
+   "method": "GET",
+   "path": "/api/v2/user",
+   "journey": "account",
+   "share": 0.0005058009041191161,
+   "requests": 64,
+   "status": {
+    "200": 0.9531,
+    "401": 0.0469
+   },
+   "latency_ms": {
+    "p50": 7.0,
+    "p90": 13.0,
+    "p95": 53.0,
+    "p99": 56.0,
+    "max": 428.0,
+    "curve": [
+     1.0,
+     5.0,
+     6.0,
+     7.0,
+     10.0,
+     13.0,
+     53.0,
+     56.0,
+     428.0,
+     428.0,
+     428.0
+    ]
+   }
+  },
+  {
+   "key": "POST /api/v2/auth/sendPasswordResetOTP",
+   "method": "POST",
+   "path": "/api/v2/auth/sendPasswordResetOTP",
+   "journey": "auth",
+   "share": 0.000458382069357949,
+   "requests": 58,
+   "status": {
+    "200": 0.8448,
+    "403": 0.1379,
+    "400": 0.0172
+   },
+   "latency_ms": {
+    "p50": 153.0,
+    "p90": 195.0,
+    "p95": 198.0,
+    "p99": 207.0,
+    "max": 232.0,
+    "curve": [
+     0.0,
+     8.0,
+     128.0,
+     153.0,
+     171.0,
+     195.0,
+     198.0,
+     207.0,
+     232.0,
+     232.0,
+     232.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/comment",
+   "method": "GET",
+   "path": "/api/v2/comment",
+   "journey": "other",
+   "share": 0.0004504789302310878,
+   "requests": 57,
+   "status": {
+    "200": 0.8246,
+    "404": 0.1754
+   },
+   "latency_ms": {
+    "p50": 3.0,
+    "p90": 9.0,
+    "p95": 10.0,
+    "p99": 10.0,
+    "max": 10.0,
+    "curve": [
+     2.0,
+     3.0,
+     3.0,
+     3.0,
+     4.0,
+     9.0,
+     10.0,
+     10.0,
+     10.0,
+     10.0,
+     10.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/logs",
+   "method": "GET",
+   "path": "/api/v2/logs",
+   "journey": "admin",
+   "share": 0.000418866373723643,
+   "requests": 53,
+   "status": {
+    "200": 1.0
+   },
+   "latency_ms": {
+    "p50": 13.0,
+    "p90": 19.0,
+    "p95": 28.0,
+    "p99": 307.0,
+    "max": 550.0,
+    "curve": [
+     10.0,
+     11.0,
+     11.0,
+     13.0,
+     18.0,
+     19.0,
+     28.0,
+     307.0,
+     550.0,
+     550.0,
+     550.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/found/claim",
+   "method": "GET",
+   "path": "/api/v2/found/claim",
+   "journey": "other",
+   "share": 0.00040306009546992066,
+   "requests": 51,
+   "status": {
+    "200": 0.9608,
+    "404": 0.0392
+   },
+   "latency_ms": {
+    "p50": 3.0,
+    "p90": 5.0,
+    "p95": 9.0,
+    "p99": 10.0,
+    "max": 10.0,
+    "curve": [
+     2.0,
+     2.0,
+     2.0,
+     3.0,
+     4.0,
+     5.0,
+     9.0,
+     10.0,
+     10.0,
+     10.0,
+     10.0
+    ]
+   }
+  },
+  {
+   "key": "POST /api/v2/uploads",
+   "method": "POST",
+   "path": "/api/v2/uploads",
+   "journey": "other",
+   "share": 0.00033983498245503113,
+   "requests": 43,
+   "status": {
+    "200": 1.0
+   },
+   "latency_ms": {
+    "p50": 71.0,
+    "p90": 85.0,
+    "p95": 95.0,
+    "p99": 117.0,
+    "max": 117.0,
+    "curve": [
+     30.0,
+     54.0,
+     60.0,
+     71.0,
+     80.0,
+     85.0,
+     95.0,
+     117.0,
+     117.0,
+     117.0,
+     117.0
+    ]
+   }
+  },
+  {
+   "key": "POST /api/v2/auth/resetPassword",
+   "method": "POST",
+   "path": "/api/v2/auth/resetPassword",
+   "journey": "auth",
+   "share": 0.00033193184332816993,
+   "requests": 42,
+   "status": {
+    "200": 0.8571,
+    "400": 0.1429
+   },
+   "latency_ms": {
+    "p50": 156.0,
+    "p90": 162.0,
+    "p95": 166.0,
+    "p99": 168.0,
+    "max": 168.0,
+    "curve": [
+     77.0,
+     85.0,
+     154.0,
+     156.0,
+     161.0,
+     162.0,
+     166.0,
+     168.0,
+     168.0,
+     168.0,
+     168.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/finance/fest-payments",
+   "method": "GET",
+   "path": "/api/v2/finance/fest-payments",
+   "journey": "other",
+   "share": 0.00026870673031328046,
+   "requests": 34,
+   "status": {
+    "200": 1.0
+   },
+   "latency_ms": {
+    "p50": 7.0,
+    "p90": 10.0,
+    "p95": 15.0,
+    "p99": 15.0,
+    "max": 15.0,
+    "curve": [
+     4.0,
+     6.0,
+     6.0,
+     7.0,
+     8.0,
+     10.0,
+     15.0,
+     15.0,
+     15.0,
+     15.0,
+     15.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/roles",
+   "method": "GET",
+   "path": "/api/v2/roles",
+   "journey": "other",
+   "share": 0.00025290045205955805,
+   "requests": 32,
+   "status": {
+    "200": 0.8438,
+    "401": 0.1562
+   },
+   "latency_ms": {
+    "p50": 2.0,
+    "p90": 10.0,
+    "p95": 76.0,
+    "p99": 81.0,
+    "max": 81.0,
+    "curve": [
+     1.0,
+     2.0,
+     2.0,
+     2.0,
+     5.0,
+     10.0,
+     76.0,
+     81.0,
+     81.0,
+     81.0,
+     81.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/courses",
+   "method": "GET",
+   "path": "/api/v2/courses",
+   "journey": "other",
+   "share": 0.00019757847817152973,
+   "requests": 25,
+   "status": {
+    "200": 0.88,
+    "401": 0.12
+   },
+   "latency_ms": {
+    "p50": 2.0,
+    "p90": 10.0,
+    "p95": 11.0,
+    "p99": 11.0,
+    "max": 11.0,
+    "curve": [
+     1.0,
+     2.0,
+     2.0,
+     2.0,
+     3.0,
+     10.0,
+     11.0,
+     11.0,
+     11.0,
+     11.0,
+     11.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/app/testUrl",
+   "method": "GET",
+   "path": "/api/v2/app/testUrl",
+   "journey": "app",
+   "share": 0.00016596592166408496,
+   "requests": 21,
+   "status": {
+    "200": 1.0
+   },
+   "latency_ms": {
+    "p50": 6.0,
+    "p90": 6.0,
+    "p95": 7.0,
+    "p99": 7.0,
+    "max": 7.0,
+    "curve": [
+     1.0,
+     1.0,
+     6.0,
+     6.0,
+     6.0,
+     6.0,
+     7.0,
+     7.0,
+     7.0,
+     7.0,
+     7.0
+    ]
+   }
+  },
+  {
+   "key": "GET /api/v2/surveys/all",
+   "method": "GET",
+   "path": "/api/v2/surveys/all",
+   "journey": "other",
+   "share": 0.0001580627825372238,
+   "requests": 20,
+   "status": {
+    "200": 1.0
+   },
+   "latency_ms": {
+    "p50": 5.0,
+    "p90": 11.0,
+    "p95": 11.0,
+    "p99": 14.0,
+    "max": 14.0,
+    "curve": [
+     3.0,
+     4.0,
+     4.0,
+     5.0,
+     7.0,
+     11.0,
+     11.0,
+     14.0,
+     14.0,
+     14.0,
+     14.0
+    ]
+   }
+  }
+ ],
+ "journeys": [
+  "account",
+  "admin",
+  "app",
+  "auth",
+  "biometric",
+  "events",
+  "gatepass",
+  "other",
+  "shuttle"
+ ],
+ "hourly_load": [
+  0.010158,
+  0.019883,
+  0.035877,
+  0.054348,
+  0.054514,
+  0.056296,
+  0.066825,
+  0.088214,
+  0.062621,
+  0.055137,
+  0.053141,
+  0.062393,
+  0.059309,
+  0.051903,
+  0.050215,
+  0.054348,
+  0.040104,
+  0.034426,
+  0.035688,
+  0.022793,
+  0.014701,
+  0.007745,
+  0.004038,
+  0.005324
+ ]
+}

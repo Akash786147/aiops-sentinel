@@ -1,0 +1,13 @@
+name: travel
+version: 1
+description: Demonstration policy pack for ticket booking (booking availability). Not any organisation's real policy.
+journeys:
+  booking: {match: ["/book", "/order", "/preserve"],   availability: 0.998, latency_p95_ms: 500, min_requests: 20}
+  search:  {match: ["/travel", "/route", "/station"],  availability: 0.99,  latency_p95_ms: 600, min_requests: 20}
+actions:
+  auto_rollback: {allow_kinds: [crash_loop, oom, unhealthy, memory], require_last_good: true}
+  approve_patch: {authorised_approvers: [], require_confirming_test: true}
+  scale: {require_capacity_evidence: true, automatic: false}
+data_handling:
+  redact: [emails, user_ids]
+  llm_may_see: [source_code, aggregated_telemetry]

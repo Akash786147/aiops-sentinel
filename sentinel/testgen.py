@@ -288,9 +288,9 @@ def confirm_node(runtime, spec, faulty: Path, fixed: Path, probes: list[str], ti
     endpoint and incident routes.
     """
     import time
+    from dataclasses import replace
 
     import httpx
-    from dataclasses import replace
 
     from controlplane.ports import infer_source_port
 
@@ -340,7 +340,7 @@ def confirm_node(runtime, spec, faulty: Path, fixed: Path, probes: list[str], ti
                     time.sleep(0.5)
             return {"outcome": "assertion_failed" if saw_response else "error",
                     "exit_code": 1 if saw_response else None, "detail": last_detail}
-        except Exception as exc:  # runtime failure is not test evidence
+        except Exception as exc:  # noqa: BLE001 - a runtime failure is reported as an error outcome, never as test evidence
             return {"outcome": "error", "exit_code": None, "detail": f"{type(exc).__name__}: {exc}"}
         finally:
             if instance is not None:

@@ -6,6 +6,7 @@ At most one automatic rollback per incident; if the rollback itself fails, the i
 """
 from __future__ import annotations
 
+from controlplane import packs
 from controlplane.core import Core
 from controlplane.locks import Busy
 
@@ -13,29 +14,43 @@ AUTO_KINDS = {"crash_loop", "oom", "unhealthy", "memory"}
 SEVERITY = {"alert": 0, "regression": 1, "cpu": 2, "stopped": 3, "crash": 3, "build": 3, "unhealthy": 4, "memory": 5, "oom": 6, "crash_loop": 7}
 
 
-def decide(core: Core, incident: dict) -> tuple[str, str]:
-    """(action, reason) where action is rollback | none."""
+def evaluate(core: Core, incident: dict) -> tuple[str, str, packs.Decision | None]:
+    """(action, reason, pack decision) where action is rollback | held | none. ``held`` means the service's policy pack leaves it to a person."""
     svc = core.store.get_service(incident["service"])
     if not svc or not svc["auto_rollback"]:
-        return "none", "auto-rollback disabled for this service"
+        return "none", "auto-rollback disabled for this service", None
     if incident["kind"] not in AUTO_KINDS:
-        return "none", f"{incident['kind']} is investigated, not rolled back automatically"
+        return "none", f"{incident['kind']} is investigated, not rolled back automatically", None
     if incident.get("auto_action"):
-        return "none", "already acted on this incident"
+        return "none", "already acted on this incident", None
     current = core.store.current_deployment(incident["service"])
     if not current or current["id"] != incident["deployment_id"]:
-        return "none", "the affected deployment is not the one serving traffic"
+        return "none", "the affected deployment is not the one serving traffic", None
     last_good = core.store.last_good(incident["service"])
     if not last_good:
-        return "none", "no last good version yet"
+        return "none", "no last good version yet", None
     if last_good["id"] == current["id"]:
-        return "none", "the failing version is the last good one; a human must decide"
-    return "rollback", f"roll back to deployment {last_good['id']} ({last_good['commit'][:7]})"
+        return "none", "the failing version is the last good one; a human must decide", None
+    verdict = packs.for_service(svc).decide("auto_rollback", {"kind": incident["kind"], "has_last_good": True})
+    if verdict.decision != "allow":
+        return "held", verdict.reason, verdict
+    return "rollback", f"roll back to deployment {last_good['id']} ({last_good['commit'][:7]})", verdict
+
+
+def decide(core: Core, incident: dict) -> tuple[str, str]:
+    """(action, reason) where action is rollback | held | none."""
+    action, reason, _ = evaluate(core, incident)
+    return action, reason
 
 
 def apply(core: Core, deployer, incident_id: int) -> str:
     incident = core.store.get_incident(incident_id)
-    action, reason = decide(core, incident)
+    action, reason, verdict = evaluate(core, incident)
+    if action == "held":
+        core.audit("sentinel", "policy_decision", service=incident["service"], incident_id=incident_id, requested="auto_rollback", **verdict.as_dict())
+        core.store.update_incident(incident_id, auto_action=f"held for a person by policy {verdict.pack} v{verdict.version}: {verdict.reason}")
+        core.bus.emit("incident", core.store.get_incident(incident_id))
+        return "held"
     if action != "rollback":
         return "none"
     try:

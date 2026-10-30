@@ -1,6 +1,6 @@
 COMPOSE = docker compose -f deploy/docker-compose.yml
 
-.PHONY: up down logs ps config test lint backup clean-services
+.PHONY: up down logs ps config test lint backup clean-services fetch-data eval-microsoft eval-rcaeval readiness
 
 up:  ## build and start the whole platform
 	$(COMPOSE) up -d --build
@@ -26,6 +26,18 @@ lint:
 backup:  ## copy the SQLite database and service repos
 	mkdir -p backups
 	tar czf backups/sentinel-$$(date +%Y%m%d-%H%M%S).tgz -C /srv/sentinel .
+
+fetch-data:  ## download the public evaluation datasets into /srv/sentinel/data
+	bash environments/fetch_datasets.sh
+
+eval-microsoft:  ## detection on the Microsoft Cloud Monitoring Dataset (about 10 minutes)
+	$(COMPOSE) exec sentinel python -m evaluation.external.microsoft /srv/sentinel/data/msds/data --out /srv/sentinel/data/microsoft.json
+
+eval-rcaeval:  ## service-level root-cause ranking on RCAEval RE1 (about 1 minute)
+	$(COMPOSE) exec sentinel python -m evaluation.external.rcaeval /srv/sentinel/data/RE1.zip --out /srv/sentinel/data/rcaeval_re1.json
+
+readiness:  ## what can Sentinel do with this data?  make readiness FILE=/srv/sentinel/data/yourfile.json
+	$(COMPOSE) exec sentinel python -m evaluation.readiness $(FILE)
 
 clean-services:  ## remove every container the platform started for monitored services
 	docker ps -aq --filter label=sentinel.monitor=true | xargs -r docker rm -f

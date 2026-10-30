@@ -30,6 +30,7 @@ class Settings:
     default_mem_limit_mb: int = 256
     default_cpu_limit: float = 0.5
     loki_url: str | None = None
+    prometheus_api: str | None = None  # where to read Traefik request metrics for services without their own telemetry
     grafana_url: str = "/grafana/"
     prometheus_url: str = "/prometheus/"
     alertmanager_url: str = "/alertmanager/"
@@ -66,5 +67,6 @@ class Settings:
             default_mem_limit_mb=int(_f("SENTINEL_DEFAULT_MEM_MB", 256)),
             default_cpu_limit=_f("SENTINEL_DEFAULT_CPUS", 0.5),
             loki_url=os.getenv("SENTINEL_LOKI_URL") or None,
+            prometheus_api=os.getenv("SENTINEL_PROMETHEUS_API") or None,
             public_host=os.getenv("SENTINEL_PUBLIC_HOST", "localhost"),
         )

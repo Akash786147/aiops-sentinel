@@ -107,3 +107,69 @@ def test_traffic_overview_metrics_health_and_events(client, orders):
         lines = [json.loads(line[6:]) for line in response.iter_lines() if line.startswith("data: ")]
     assert any(e["kind"] == "deployment" for e in lines)
     assert client.get("/").status_code == 200
+
+
+def _git(cwd, *args):
+    import subprocess
+    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True)
+
+
+def test_add_service_from_a_git_repository(client, tmp_path):
+    """Bring-your-own repo: clone, register from its sentinel.json, deploy, and refuse bad input."""
+    import shutil
+    from pathlib import Path
+
+    repo = tmp_path / "byo-repo"
+    shutil.copytree(Path(__file__).resolve().parents[1] / "samples" / "inventory", repo, ignore=shutil.ignore_patterns("__pycache__"))
+    _git(repo, "init", "-q", "-b", "main")
+    _git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "add", "-A")
+    _git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "initial")
+
+    resp = client.post("/api/services", json={"kind": "git", "name": "my-stock", "url": repo.as_uri(), "branch": "main"})
+    assert resp.status_code == 200, resp.text
+    svc = wait_healthy(client, "my-stock")
+    assert svc["kind"] == "git" and svc["current"]["commit"]
+
+    assert client.post("/api/services", json={"kind": "git", "name": "my-stock", "url": repo.as_uri()}).status_code == 400  # duplicate
+    assert client.post("/api/services", json={"kind": "git", "name": "two", "url": repo.as_uri(), "port": 99999}).status_code == 422
+    assert client.post("/api/services", json={"kind": "git", "name": "two", "url": repo.as_uri(), "health_path": "no-slash"}).status_code == 422
+    custom = client.post("/api/services", json={"kind": "git", "name": "two", "url": repo.as_uri(), "port": 5000, "health_path": "/health"})
+    assert custom.status_code == 200 and (custom.json()["port"], custom.json()["health_path"]) == (5000, "/health")
+    assert client.post("/api/services", json={"kind": "git", "name": "Bad Name", "url": repo.as_uri()}).status_code == 400
+    assert client.post("/api/services", json={"kind": "git", "name": "other", "url": "ftp://example.com/x"}).status_code == 400
+    assert client.post("/api/services", json={"kind": "git", "name": "ghost", "url": (tmp_path / "missing").as_uri()}).status_code == 400
+
+
+def test_synthetic_lab_samples_are_hidden_unless_the_lab_is_enabled(tmp_path, monkeypatch):
+    settings = replace(Settings.from_env(), home=tmp_path, runtime="process")
+    monkeypatch.delenv("SENTINEL_LAB", raising=False)
+    with TestClient(create_app(settings, start_background=False, bootstrap=())) as c:
+        assert not {"orders", "inventory", "payments"} & set(c.get("/api/overview").json()["samples"])
+    monkeypatch.setenv("SENTINEL_LAB", "1")
+    with TestClient(create_app(settings, start_background=False, bootstrap=())) as c:
+        assert {"orders", "inventory", "payments"} <= set(c.get("/api/overview").json()["samples"])
+
+
+def test_service_policy_endpoint_reports_the_pack_and_journey_slos(client):
+    assert client.post("/api/services", json={"kind": "sample", "name": "campus-api"}).status_code == 200
+    wait_healthy(client, "campus-api")
+    body = client.get("/api/services/campus-api/policy").json()
+    assert body["pack"]["name"] == "campus" and body["pack"]["version"] >= 1 and "demonstration" in body["pack"]["description"].lower()
+    assert {j["journey"] for j in body["journeys"]} == {"gatepass", "shuttle", "biometric"}
+    assert client.get("/api/services/ghost/policy").status_code == 404
+
+
+def test_external_validation_results_are_served_when_present(client, tmp_path, monkeypatch):
+    import json
+
+    from controlplane import app as app_module
+
+    folder = tmp_path / "external"
+    folder.mkdir()
+    (folder / "microsoft.json").write_text(json.dumps({"dataset": "ms", "methods": {"robust_persistence": {"all": {"f1": 0.3}}}}), encoding="utf-8")
+    monkeypatch.setattr(app_module, "EXTERNAL_RESULTS", folder)
+    body = client.get("/api/results/external").json()
+    assert body["microsoft"]["methods"]["robust_persistence"]["all"]["f1"] == 0.3 and body["rcaeval_re1"] is None
+    (client.core.settings.home / "data").mkdir()  # a result written on the server wins over the one shipped in the repository
+    (client.core.settings.home / "data" / "microsoft.json").write_text(json.dumps({"dataset": "server", "methods": {}}), encoding="utf-8")
+    assert client.get("/api/results/external").json()["microsoft"]["dataset"] == "server"

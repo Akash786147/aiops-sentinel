@@ -17,21 +17,22 @@ from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Gauge, generate_latest
 from pydantic import BaseModel, Field
 
-from controlplane import faults
+from controlplane import faults, packs
 from controlplane.config import Settings
 from controlplane.core import Core
 from controlplane.deployer import Deployer, DeployError
 from controlplane.detector import Detector
-from controlplane.investigator import Investigator, NotApprovable
+from controlplane.investigator import Investigator, NotApprovable, PolicyBlocked
 from controlplane.locks import Busy
 from controlplane.monitor import Monitor
-from controlplane.registry import register_git, register_sample
+from controlplane.registry import catalogue, register_git, register_sample
 from controlplane.runtime.base import Runtime
 from controlplane.traffic import Traffic
 from panel.paths import DEFAULT as PANEL_PATHS
 from panel.results import load_results
 
 STATIC = Path(__file__).parent / "static"
+EXTERNAL_RESULTS = Path(__file__).resolve().parents[1] / "evaluation" / "results" / "external"
 log = logging.getLogger("sentinel.app")
 LIVE = ("healthy", "starting")
 
@@ -49,6 +50,8 @@ class AddService(BaseModel):
     branch: str | None = None
     mem_limit_mb: int | None = Field(default=None, ge=32, le=8192)
     cpu_limit: float | None = Field(default=None, gt=0, le=8)
+    port: int | None = Field(default=None, ge=1, le=65535)
+    health_path: str | None = Field(default=None, pattern=r"^/\S*$", max_length=200)
     actor: str = "user"
 
 
@@ -112,7 +115,10 @@ def create_app(settings: Settings | None = None, runtime: Runtime | None = None,
         "deploys": Gauge("sentinel_deployments", "Deployments by status", ["service", "status"], registry=registry),
         "rollbacks": Gauge("sentinel_auto_rollbacks", "Automatic rollbacks", ["service"], registry=registry),
     }
-    samples = tuple(s.strip() for s in os.getenv("SENTINEL_BOOTSTRAP", "orders,inventory,payments").split(",") if s.strip()) if bootstrap is None else bootstrap
+    show_lab = os.getenv("SENTINEL_LAB") == "1"
+    wanted = os.getenv("SENTINEL_BOOTSTRAP")
+    samples = bootstrap if bootstrap is not None else (
+        tuple(s.strip() for s in wanted.split(",") if s.strip()) if wanted is not None else tuple(catalogue(settings.samples_dir)))
 
     def submit(service: str, fn, *args, **kwargs) -> dict:
         if core.store.get_service(service) is None:
@@ -200,7 +206,7 @@ def create_app(settings: Settings | None = None, runtime: Runtime | None = None,
                 "open_incidents": len([i for i in core.store.incidents(limit=200) if i["status"] not in ("resolved", "dismissed")]),
                 "traffic": traffic.status(),
                 "links": {"grafana": settings.grafana_url, "prometheus": settings.prometheus_url, "alertmanager": settings.alertmanager_url},
-                "samples": sorted(p.name for p in settings.samples_dir.iterdir() if (p / "sentinel.json").exists())}
+                "samples": catalogue(settings.samples_dir, show_lab)}
 
     @app.get("/api/services")
     def services() -> list[dict]:
@@ -212,13 +218,33 @@ def create_app(settings: Settings | None = None, runtime: Runtime | None = None,
             if body.kind == "sample":
                 svc = register_sample(core, body.name, mem_limit_mb=body.mem_limit_mb, cpu_limit=body.cpu_limit)
             elif body.kind == "git" and body.url:
-                svc = register_git(core, body.name, body.url, body.branch, mem_limit_mb=body.mem_limit_mb, cpu_limit=body.cpu_limit)
+                svc = register_git(core, body.name, body.url, body.branch, mem_limit_mb=body.mem_limit_mb, cpu_limit=body.cpu_limit,
+                                   port=body.port, health_path=body.health_path)
             else:
                 raise ValueError("kind must be 'sample' or 'git' (with url)")
         except (ValueError, RuntimeError) as exc:
             raise HTTPException(400, str(exc)) from None
         submit(svc["name"], deployer.deploy, svc["name"], trigger="initial", actor=body.actor)
         return svc
+
+    @app.get("/api/results/external")
+    def external_results() -> dict:
+        """Evaluations on independent data (Microsoft Cloud Monitoring, RCAEval), when they have been run."""
+        def read(name: str):
+            for folder in (settings.home / "data", EXTERNAL_RESULTS):  # results written on the server first, then the ones shipped in the repo
+                if (folder / name).is_file():
+                    return json.loads((folder / name).read_text(encoding="utf-8"))
+            return None
+        return {"microsoft": read("microsoft.json"), "rcaeval_re1": read("rcaeval_re1.json")}
+
+    @app.get("/api/services/{name}/policy")
+    def service_policy(name: str, window_s: int = 120) -> dict:
+        """The policy pack that governs this service and how its business journeys stand against the pack's SLOs right now."""
+        svc = need(name)
+        pack = packs.for_service(svc)
+        recent = monitor.series(name, since=time.time() - max(10, min(window_s, 900)))
+        return {"pack": {"name": pack.name, "version": pack.version, "description": pack.description, "actions": pack.actions,
+                         "data_handling": pack.data_handling}, "journeys": pack.slo_status(recent), "window_s": window_s}
 
     @app.get("/api/services/{name}")
     def service(name: str) -> dict:
@@ -316,6 +342,8 @@ def create_app(settings: Settings | None = None, runtime: Runtime | None = None,
             raise HTTPException(422, "approver name is required")
         try:
             dep = investigator.approve(inc_id, approver=body.approver.strip(), note=body.note)
+        except PolicyBlocked as exc:
+            raise HTTPException(403, str(exc)) from None
         except NotApprovable as exc:
             raise HTTPException(409, str(exc)) from None
         except Busy as exc:

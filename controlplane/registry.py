@@ -26,6 +26,16 @@ def _row(core: Core, name: str, source: str, kind: str, manifest: dict, override
     return row
 
 
+def catalogue(samples_dir, lab: bool = False) -> list[str]:
+    """Bundled services that can be added. The synthetic lab samples (``"lab": true``) are hidden unless ``lab`` is set."""
+    names = []
+    for path in sorted(samples_dir.iterdir()):
+        manifest = path / "sentinel.json"
+        if manifest.exists() and (lab or not json.loads(manifest.read_text(encoding="utf-8")).get("lab")):
+            names.append(path.name)
+    return names
+
+
 def register_sample(core: Core, name: str, **overrides) -> dict:
     if core.store.get_service(name):
         raise ValueError(f"service {name} already exists")

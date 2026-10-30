@@ -1,11 +1,16 @@
 """Per-service telemetry, once a tick: the service's own interval drain plus the runtime's view of the instance.
 
+A service that has no telemetry of its own (a cloned repository) is measured where its requests enter: Traefik. When
+``SENTINEL_PROMETHEUS_API`` is set the monitor reads Traefik's per-service counters and latency histogram from
+Prometheus and reports them as one route, so curl requests show up with no change to the service.
+
 Samples keep the shape ``sentinel.detection`` already understands (``t``, ``service``, ``up``, ``routes``,
 ``cpu_percent``, ``rss_mb``, slow/failed request samples, exemplars) plus lifecycle fields for the detector.
 """
 from __future__ import annotations
 
 import logging
+import math
 import threading
 import time
 from collections import deque
@@ -20,13 +25,15 @@ log = logging.getLogger("sentinel.monitor")
 
 
 class Monitor:
-    def __init__(self, core: Core, interval: float = 1.0, keep: int = 900) -> None:
-        self.core, self.interval, self.keep = core, interval, keep
+    def __init__(self, core: Core, interval: float = 1.0, keep: int = 900, edge_every: float = 5.0) -> None:
+        self.core, self.interval, self.keep, self.edge_every = core, interval, keep, edge_every
+        self._edge: dict[str, dict] = {}
         self._buffers: dict[str, deque] = {}
         self._halt = threading.Event()
         self._thread: threading.Thread | None = None
         self._pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="monitor")
         self._client = httpx.Client(timeout=1.5)
+        self._prom = httpx.Client(timeout=2.0)
 
     def series(self, service: str, since: float | None = None) -> list[dict]:
         rows = list(self._buffers.get(service, ()))
@@ -62,11 +69,43 @@ class Monitor:
                 sample["up"] = False
         elif status.running:
             sample["up"] = status.health != "unhealthy"
+            if self.core.settings.prometheus_api:
+                sample["routes"] = self._edge_routes(svc["name"])
         stats = runtime.stats(dep["instance"]) if status.running else None
         sample.update(cpu_percent=stats.cpu_percent if stats else None, rss_mb=stats.mem_mb if stats else None,
                       mem_limit_mb=(stats.mem_limit_mb if stats and stats.mem_limit_mb else svc["mem_limit_mb"]),
                       cpu_limit=(stats.cpu_limit if stats and stats.cpu_limit else svc["cpu_limit"]))
         return sample
+
+    def _prom_value(self, query: str) -> float | None:
+        try:
+            body = self._prom.get(self.core.settings.prometheus_api.rstrip("/") + "/api/v1/query", params={"query": query}).json()
+            result = body["data"]["result"]
+            value = float(result[0]["value"][1]) if result else None
+        except (httpx.HTTPError, ValueError, KeyError, IndexError):
+            return None
+        return None if value is None or math.isnan(value) else value  # NaN means no requests in the window
+
+    def _edge_routes(self, name: str) -> dict:
+        """Requests since the last look, counted by Traefik: one pseudo-route, empty until the second look."""
+        state = self._edge.setdefault(name, {"at": 0.0, "total": None, "errors": None, "p95_ms": None, "count": 0, "bad": 0})
+        now = time.time()
+        if now - state["at"] >= self.edge_every:
+            svc = f'service="svc-{name}@docker"'
+            total = self._prom_value(f"sum(traefik_service_requests_total{{{svc}}})")
+            errors = self._prom_value(f'sum(traefik_service_requests_total{{{svc},code=~"5.."}})') or 0.0
+            p95 = self._prom_value(f"histogram_quantile(0.95, sum by (le) (rate(traefik_service_request_duration_seconds_bucket{{{svc}}}[1m])))")
+            state.update(at=now, count=0, bad=0, p95_ms=None if p95 is None else p95 * 1000)
+            if total is not None:
+                if state["total"] is not None:  # a counter that went down was reset: count from zero
+                    state["count"] = int(total - state["total"] if total >= state["total"] else total)
+                    state["bad"] = int(errors - state["errors"] if errors >= (state["errors"] or 0) else errors)
+                state.update(total=total, errors=errors)
+        else:
+            state.update(count=0, bad=0)
+        if state["total"] is None:
+            return {}
+        return {"all requests": {"count": state["count"], "errors": state["bad"], "p95_ms": state["p95_ms"] or 0.0}}
 
     @staticmethod
     def _slim(sample: dict) -> dict:

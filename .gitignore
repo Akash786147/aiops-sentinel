@@ -6,3 +6,7 @@ __pycache__/
 .chromadb/
 data/
 .env
+
+# private raw data: only aggregated, anonymous profiles belong in the repository
+drizzle-data-*.json
+IDT - Mid Sem Presentation.pptx

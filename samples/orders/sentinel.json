@@ -8,5 +8,6 @@
   "owner": "team-commerce",
   "shared_code": [
     "common"
-  ]
+  ],
+  "lab": true
 }

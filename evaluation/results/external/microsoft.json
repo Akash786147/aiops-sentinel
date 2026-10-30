@@ -1,0 +1,415 @@
+{
+ "dataset": "microsoft/cloud-monitoring-dataset (MIT)",
+ "series": 60,
+ "no_tuning": true,
+ "methods": {
+  "static_threshold": {
+   "all": {
+    "series": 60,
+    "segments": 299,
+    "alerts": 1064,
+    "precision": 0.203,
+    "recall": 0.495,
+    "f1": 0.2879,
+    "median_delay_points": 1.0,
+    "false_alarms_per_1000_points_anomaly_free": 0.8266,
+    "anomaly_free_series": 6
+   },
+   "split_A": {
+    "series": 29,
+    "segments": 196,
+    "alerts": 485,
+    "precision": 0.2186,
+    "recall": 0.449,
+    "f1": 0.294,
+    "median_delay_points": 1.0,
+    "false_alarms_per_1000_points_anomaly_free": 0.6944,
+    "anomaly_free_series": 3
+   },
+   "split_B": {
+    "series": 31,
+    "segments": 103,
+    "alerts": 579,
+    "precision": 0.19,
+    "recall": 0.5825,
+    "f1": 0.2865,
+    "median_delay_points": 1.0,
+    "false_alarms_per_1000_points_anomaly_free": 1.1792,
+    "anomaly_free_series": 3
+   },
+   "by_domain": {
+    "application-crash-rate-1": {
+     "series": 9,
+     "segments": 83,
+     "alerts": 115,
+     "precision": 0.6348,
+     "recall": 0.5542,
+     "f1": 0.5918,
+     "median_delay_points": 1.0,
+     "false_alarms_per_1000_points_anomaly_free": null,
+     "anomaly_free_series": 0
+    },
+    "application-crash-rate-2": {
+     "series": 10,
+     "segments": 67,
+     "alerts": 143,
+     "precision": 0.3007,
+     "recall": 0.5672,
+     "f1": 0.393,
+     "median_delay_points": 1.5,
+     "false_alarms_per_1000_points_anomaly_free": null,
+     "anomaly_free_series": 0
+    },
+    "consumer-purchase-rate": {
+     "series": 6,
+     "segments": 18,
+     "alerts": 54,
+     "precision": 0.2963,
+     "recall": 0.6667,
+     "f1": 0.4103,
+     "median_delay_points": 1.0,
+     "false_alarms_per_1000_points_anomaly_free": 13.6218,
+     "anomaly_free_series": 1
+    },
+    "data-ingress-rate": {
+     "series": 5,
+     "segments": 11,
+     "alerts": 284,
+     "precision": 0.007,
+     "recall": 0.1818,
+     "f1": 0.0136,
+     "median_delay_points": 0.0,
+     "false_alarms_per_1000_points_anomaly_free": 0.8207,
+     "anomaly_free_series": 1
+    },
+    "ecommerce-api-incoming-rps": {
+     "series": 1,
+     "segments": 19,
+     "alerts": 26,
+     "precision": 0.5385,
+     "recall": 0.6842,
+     "f1": 0.6026,
+     "median_delay_points": 2,
+     "false_alarms_per_1000_points_anomaly_free": null,
+     "anomaly_free_series": 0
+    },
+    "middle-tier-api-dependency-latency": {
+     "series": 23,
+     "segments": 74,
+     "alerts": 184,
+     "precision": 0.2174,
+     "recall": 0.4054,
+     "f1": 0.283,
+     "median_delay_points": 1.0,
+     "false_alarms_per_1000_points_anomaly_free": 5.5556,
+     "anomaly_free_series": 1
+    },
+    "mongodb-application-rps": {
+     "series": 4,
+     "segments": 2,
+     "alerts": 168,
+     "precision": 0.1071,
+     "recall": 0.5,
+     "f1": 0.1765,
+     "median_delay_points": 89,
+     "false_alarms_per_1000_points_anomaly_free": 0.5682,
+     "anomaly_free_series": 2
+    },
+    "mongodb-machine-rps": {
+     "series": 1,
+     "segments": 25,
+     "alerts": 88,
+     "precision": 0.1136,
+     "recall": 0.24,
+     "f1": 0.1542,
+     "median_delay_points": 0.0,
+     "false_alarms_per_1000_points_anomaly_free": null,
+     "anomaly_free_series": 0
+    },
+    "service-unavailable": {
+     "series": 1,
+     "segments": 0,
+     "alerts": 2,
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0,
+     "median_delay_points": null,
+     "false_alarms_per_1000_points_anomaly_free": 0.1263,
+     "anomaly_free_series": 1
+    }
+   }
+  },
+  "rolling_zscore": {
+   "all": {
+    "series": 60,
+    "segments": 299,
+    "alerts": 201,
+    "precision": 0.4876,
+    "recall": 0.2074,
+    "f1": 0.291,
+    "median_delay_points": 3.0,
+    "false_alarms_per_1000_points_anomaly_free": 0.3674,
+    "anomaly_free_series": 6
+   },
+   "split_A": {
+    "series": 29,
+    "segments": 196,
+    "alerts": 107,
+    "precision": 0.4299,
+    "recall": 0.1939,
+    "f1": 0.2672,
+    "median_delay_points": 3.0,
+    "false_alarms_per_1000_points_anomaly_free": 0.3577,
+    "anomaly_free_series": 3
+   },
+   "split_B": {
+    "series": 31,
+    "segments": 103,
+    "alerts": 94,
+    "precision": 0.5532,
+    "recall": 0.233,
+    "f1": 0.3279,
+    "median_delay_points": 3.0,
+    "false_alarms_per_1000_points_anomaly_free": 0.3931,
+    "anomaly_free_series": 3
+   },
+   "by_domain": {
+    "application-crash-rate-1": {
+     "series": 9,
+     "segments": 83,
+     "alerts": 13,
+     "precision": 1.0,
+     "recall": 0.1205,
+     "f1": 0.2151,
+     "median_delay_points": 3.0,
+     "false_alarms_per_1000_points_anomaly_free": null,
+     "anomaly_free_series": 0
+    },
+    "application-crash-rate-2": {
+     "series": 10,
+     "segments": 67,
+     "alerts": 30,
+     "precision": 0.6667,
+     "recall": 0.2836,
+     "f1": 0.3979,
+     "median_delay_points": 4,
+     "false_alarms_per_1000_points_anomaly_free": null,
+     "anomaly_free_series": 0
+    },
+    "consumer-purchase-rate": {
+     "series": 6,
+     "segments": 18,
+     "alerts": 9,
+     "precision": 0.7778,
+     "recall": 0.3333,
+     "f1": 0.4667,
+     "median_delay_points": 3.0,
+     "false_alarms_per_1000_points_anomaly_free": 0.0,
+     "anomaly_free_series": 1
+    },
+    "data-ingress-rate": {
+     "series": 5,
+     "segments": 11,
+     "alerts": 40,
+     "precision": 0.275,
+     "recall": 0.5455,
+     "f1": 0.3657,
+     "median_delay_points": 2.0,
+     "false_alarms_per_1000_points_anomaly_free": 0.2525,
+     "anomaly_free_series": 1
+    },
+    "ecommerce-api-incoming-rps": {
+     "series": 1,
+     "segments": 19,
+     "alerts": 5,
+     "precision": 0.8,
+     "recall": 0.1579,
+     "f1": 0.2637,
+     "median_delay_points": 1,
+     "false_alarms_per_1000_points_anomaly_free": null,
+     "anomaly_free_series": 0
+    },
+    "middle-tier-api-dependency-latency": {
+     "series": 23,
+     "segments": 74,
+     "alerts": 20,
+     "precision": 0.7,
+     "recall": 0.1892,
+     "f1": 0.2979,
+     "median_delay_points": 3.0,
+     "false_alarms_per_1000_points_anomaly_free": 0.0,
+     "anomaly_free_series": 1
+    },
+    "mongodb-application-rps": {
+     "series": 4,
+     "segments": 2,
+     "alerts": 62,
+     "precision": 0.4032,
+     "recall": 0.5,
+     "f1": 0.4464,
+     "median_delay_points": 143,
+     "false_alarms_per_1000_points_anomaly_free": 0.6313,
+     "anomaly_free_series": 2
+    },
+    "mongodb-machine-rps": {
+     "series": 1,
+     "segments": 25,
+     "alerts": 22,
+     "precision": 0.1818,
+     "recall": 0.12,
+     "f1": 0.1446,
+     "median_delay_points": 2,
+     "false_alarms_per_1000_points_anomaly_free": null,
+     "anomaly_free_series": 0
+    },
+    "service-unavailable": {
+     "series": 1,
+     "segments": 0,
+     "alerts": 0,
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0,
+     "median_delay_points": null,
+     "false_alarms_per_1000_points_anomaly_free": 0.0,
+     "anomaly_free_series": 1
+    }
+   }
+  },
+  "robust_persistence": {
+   "all": {
+    "series": 60,
+    "segments": 299,
+    "alerts": 166,
+    "precision": 0.4819,
+    "recall": 0.2241,
+    "f1": 0.3059,
+    "median_delay_points": 3,
+    "false_alarms_per_1000_points_anomaly_free": 0.0459,
+    "anomaly_free_series": 6
+   },
+   "split_A": {
+    "series": 29,
+    "segments": 196,
+    "alerts": 78,
+    "precision": 0.5641,
+    "recall": 0.2143,
+    "f1": 0.3106,
+    "median_delay_points": 3.0,
+    "false_alarms_per_1000_points_anomaly_free": 0.0,
+    "anomaly_free_series": 3
+   },
+   "split_B": {
+    "series": 31,
+    "segments": 103,
+    "alerts": 88,
+    "precision": 0.4091,
+    "recall": 0.2427,
+    "f1": 0.3047,
+    "median_delay_points": 3,
+    "false_alarms_per_1000_points_anomaly_free": 0.1685,
+    "anomaly_free_series": 3
+   },
+   "by_domain": {
+    "application-crash-rate-1": {
+     "series": 9,
+     "segments": 83,
+     "alerts": 24,
+     "precision": 0.9583,
+     "recall": 0.253,
+     "f1": 0.4003,
+     "median_delay_points": 3,
+     "false_alarms_per_1000_points_anomaly_free": null,
+     "anomaly_free_series": 0
+    },
+    "application-crash-rate-2": {
+     "series": 10,
+     "segments": 67,
+     "alerts": 48,
+     "precision": 0.4167,
+     "recall": 0.2687,
+     "f1": 0.3267,
+     "median_delay_points": 3.0,
+     "false_alarms_per_1000_points_anomaly_free": null,
+     "anomaly_free_series": 0
+    },
+    "consumer-purchase-rate": {
+     "series": 6,
+     "segments": 18,
+     "alerts": 5,
+     "precision": 1.0,
+     "recall": 0.2222,
+     "f1": 0.3636,
+     "median_delay_points": 3.0,
+     "false_alarms_per_1000_points_anomaly_free": 0.0,
+     "anomaly_free_series": 1
+    },
+    "data-ingress-rate": {
+     "series": 5,
+     "segments": 11,
+     "alerts": 22,
+     "precision": 0.2727,
+     "recall": 0.4545,
+     "f1": 0.3409,
+     "median_delay_points": 5,
+     "false_alarms_per_1000_points_anomaly_free": 0.0,
+     "anomaly_free_series": 1
+    },
+    "ecommerce-api-incoming-rps": {
+     "series": 1,
+     "segments": 19,
+     "alerts": 1,
+     "precision": 1.0,
+     "recall": 0.0526,
+     "f1": 0.1,
+     "median_delay_points": 3,
+     "false_alarms_per_1000_points_anomaly_free": null,
+     "anomaly_free_series": 0
+    },
+    "middle-tier-api-dependency-latency": {
+     "series": 23,
+     "segments": 74,
+     "alerts": 50,
+     "precision": 0.34,
+     "recall": 0.2297,
+     "f1": 0.2742,
+     "median_delay_points": 3,
+     "false_alarms_per_1000_points_anomaly_free": 0.0,
+     "anomaly_free_series": 1
+    },
+    "mongodb-application-rps": {
+     "series": 4,
+     "segments": 2,
+     "alerts": 16,
+     "precision": 0.5,
+     "recall": 0.5,
+     "f1": 0.5,
+     "median_delay_points": 315,
+     "false_alarms_per_1000_points_anomaly_free": 0.0947,
+     "anomaly_free_series": 2
+    },
+    "mongodb-machine-rps": {
+     "series": 1,
+     "segments": 25,
+     "alerts": 0,
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0,
+     "median_delay_points": null,
+     "false_alarms_per_1000_points_anomaly_free": null,
+     "anomaly_free_series": 0
+    },
+    "service-unavailable": {
+     "series": 1,
+     "segments": 0,
+     "alerts": 0,
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0,
+     "median_delay_points": null,
+     "false_alarms_per_1000_points_anomaly_free": 0.0,
+     "anomaly_free_series": 1
+    }
+   }
+  }
+ }
+}

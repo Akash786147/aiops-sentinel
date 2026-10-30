@@ -118,3 +118,13 @@ def test_stats_logs_and_stop():
     assert rt.logs(inst.id, 10)[-1] == "Traceback: boom"
     rt.stop(inst.id)
     assert client.containers.items["c1"].stopped and client.containers.items["c1"].removed
+
+
+def test_only_services_with_prometheus_metrics_are_scraped_but_every_service_is_routed_and_labelled():
+    runtime = DockerRuntime(client=FakeClient())
+    plain = ServiceSpec(name="byo", module="", port=5000, health_path="/health", metrics_path=None, mem_limit_mb=256, cpu_limit=0.5)
+    labels = runtime.labels(plain)
+    assert labels["sentinel.monitor"] == "false" and labels["sentinel.service"] == "byo"
+    assert labels["traefik.http.routers.svc-byo.rule"] == "PathPrefix(`/svc/byo`)"
+    assert labels["traefik.http.services.svc-byo.loadbalancer.server.port"] == "5000"
+    assert runtime.labels(SPEC)["sentinel.monitor"] == "true"

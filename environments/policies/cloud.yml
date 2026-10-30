@@ -1,0 +1,12 @@
+name: cloud
+version: 1
+description: Demonstration policy pack for a cloud SaaS API (latency, crash rate, database query rate). Not any organisation's real policy.
+journeys:
+  api: {match: ["/api"], availability: 0.999, latency_p95_ms: 300, min_requests: 50}
+actions:
+  auto_rollback: {allow_kinds: [crash_loop, oom, unhealthy], require_last_good: true}
+  approve_patch: {authorised_approvers: [], require_confirming_test: false}
+  scale: {require_capacity_evidence: true, automatic: false}
+data_handling:
+  redact: [access_tokens, emails]
+  llm_may_see: [aggregated_telemetry]

@@ -1,0 +1,13 @@
+name: ecommerce
+version: 1
+description: Demonstration policy pack for an online shop (checkout availability and latency). Not any organisation's real policy.
+journeys:
+  checkout: {match: ["/checkout", "/cart", "/orders"], availability: 0.998, latency_p95_ms: 300, min_requests: 20}
+  browse:   {match: ["/product", "/catalog"],          availability: 0.99,  latency_p95_ms: 400, min_requests: 20}
+actions:
+  auto_rollback: {allow_kinds: [crash_loop, oom, unhealthy, memory], require_last_good: true}
+  approve_patch: {authorised_approvers: [], require_confirming_test: true}
+  scale: {require_capacity_evidence: true, automatic: false}
+data_handling:
+  redact: [card_numbers, emails, user_ids]
+  llm_may_see: [source_code, aggregated_telemetry]

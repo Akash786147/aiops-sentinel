@@ -58,6 +58,46 @@ Restart a service: **Service > Restart** (builds the working copy, health-gates,
 paste a git URL and branch; the repo needs a Dockerfile, an HTTP port and a health path (defaults: 8000, `/health`). For
 metrics, expose Prometheus text on `/metrics`; without it you still get lifecycle and resource monitoring.
 
+## 4b. Monitor your own project from GitHub
+
+1. **Add service** > "Your own repository": name, public `https://github.com/you/repo.git`, branch, the **port** the app listens on
+   and a **health path** that returns 200. The repo needs a `Dockerfile` at its root. Private repositories are not supported yet.
+2. Sentinel clones it, builds it, runs it with CPU and memory limits and watches it. No traffic is generated for it.
+3. Send your own requests through the entry point and watch them appear:
+   ```bash
+   for i in $(seq 1 50); do curl -s -o /dev/null http://<server-ip>:8080/svc/<name>/ ; done
+   curl -s -o /dev/null -w "%{http_code}
+" http://<server-ip>:8080/svc/<name>/does-not-exist     # a 404 or 5xx shows as errors
+   ```
+4. Where it shows up:
+   - **Console > Service > Live**: requests per interval, error count and p95 latency. They are measured at Traefik, so the
+     app needs no changes. The first look sets a baseline and counts appear from the second 5-second refresh.
+   - **Grafana > "AIOps Sentinel - services"**: the three Traefik panels at the bottom (requests, p95, 5xx per service).
+   - **Always**, with or without `/metrics`: container CPU and memory, restarts, OOM kills, health, and logs.
+5. If the app also exposes Prometheus metrics, that is a bonus, not a requirement. Services without `/metrics` are not
+   scraped, so they never raise a false "ServiceDown".
+6. Break it on purpose without the Test lab: push a bad change in the Code tab and press Restart. A crash, OOM or failing health
+   check is detected from Docker and rolled back to the last good version.
+
+## 4c. The industry environments (new server)
+
+The default deployment now brings up the **campus-api** environment (a replay of a real campus application's traffic, with injected changes), hides the
+synthetic lab samples (`SENTINEL_LAB=1` shows them), and adds a **Policy** tab per service. Everything needed is in the repository: the anonymous traffic profile
+is `samples/campus-api/campus/profile.json`; the raw log is private and never required.
+
+```bash
+# fresh server, after Docker and the stack are up (see section 1)
+make fetch-data                 # Microsoft dataset (~10 MB) + RCAEval RE1 (~390 MB, read in place) into /srv/sentinel/data
+make eval-rcaeval               # ~1 minute: faulty service ranked first on 375 real fault-injection cases
+make eval-microsoft             # 5 to 10 minutes: detection on 60 labelled production series
+make readiness FILE=/srv/sentinel/data/yourdata.json    # what can Sentinel do with this data?
+```
+Results appear on the console's **Results** page ("Independent data") without a rebuild. Demo, numbers and the honest limits of each dataset:
+[ENVIRONMENTS.md](ENVIRONMENTS.md).
+
+Try the campus loop: **Test lab > campus-api > slow_gatepass > Apply > Restart now**; within a minute an incident appears with the changed file ranked first, a test that fails
+on the bad version and passes on the last good one, and the gate-pass journey shown as an SLO breach on the **Policy** tab.
+
 ## 5. Limits and safety
 
 * Each monitored container is capped (default 256 MB, 0.5 CPU; change per service in Settings), so one bad service cannot

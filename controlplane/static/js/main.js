@@ -40,6 +40,13 @@ function nav() {
   $('#railfoot').innerHTML = `<b>AIOps Sentinel</b><br>runtime: ${esc(S.overview?.runtime || '…')}<br>Akash · Aryan · Syna`;
 }
 
+function toggleTheme() {
+  const dark = document.documentElement.dataset.theme !== 'dark';
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  try { localStorage.setItem('sentinel-theme', dark ? 'dark' : 'light'); } catch (e) { /* the theme still switches for this page */ }
+  topbar();
+}
+
 function topbar() {
   const o = S.overview, t = o?.traffic;
   const healthy = S.order.filter(n => serviceState(S.services[n])[1] === 'ok').length;
@@ -47,7 +54,9 @@ function topbar() {
     <label class="switch ${t?.enabled ? 'on' : ''}" id="traffic" title="Background load against every running service"><i></i>Traffic</label>
     <input class="msg" id="actor" placeholder="Your name (for the audit trail)" value="${esc(S.actor)}" style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 10px;width:220px">
     <div class="links">${o ? Object.entries(o.links).filter(([k]) => k !== 'prometheus').map(([k, v]) => `<a href="${esc(v)}" target="_blank" rel="noopener">${k[0].toUpperCase() + k.slice(1)}</a>`).join('') : ''}</div>
+    <button class="btn ghost sm" id="theme" title="Switch between light and dark">${document.documentElement.dataset.theme === 'dark' ? 'Light' : 'Dark'} mode</button>
     <div class="state ${S.connected ? 'done' : 'failed'}"><i></i>${S.connected ? 'live' : 'reconnecting'}</div>`;
+  $('#theme').onclick = toggleTheme;
   $('#traffic').onclick = async () => { try { S.overview.traffic = await api.traffic(!S.overview.traffic.enabled); changed(); } catch (e) { notice(e.message); } };
   $('#actor').onchange = e => setActor(e.target.value.trim());
 }

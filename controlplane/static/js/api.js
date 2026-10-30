@@ -23,6 +23,7 @@ export const api = {
   file: (n, path, ref) => j(`/api/services/${enc(n)}/file?path=${enc(path)}${ref ? '&ref=' + enc(ref) : ''}`),
   saveFile: (n, path, content, actor) => send('PUT', `/api/services/${enc(n)}/file`, { path, content, actor }),
   diff: n => j(`/api/services/${enc(n)}/diff`),
+  policy: (n, w = 120) => j(`/api/services/${enc(n)}/policy?window_s=${w}`),
   incidents: () => j('/api/incidents'),
   incident: id => j(`/api/incidents/${id}`),
   approve: (id, body) => send('POST', `/api/incidents/${id}/approve`, body),
@@ -35,6 +36,7 @@ export const api = {
   audit: (limit = 200, service) => j(`/api/audit?limit=${limit}${service ? '&service=' + enc(service) : ''}`),
   traffic: enabled => send('POST', '/api/traffic', { enabled }),
   results: () => j('/api/results'),
+  external: () => j('/api/results/external'),
   head: () => j('/api/events/head'),
 };
 export function connect(since, onEvent, onStatus) {

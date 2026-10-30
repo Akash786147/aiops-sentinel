@@ -53,3 +53,40 @@ def test_generic_faults_change_only_the_app_module(core):
 def test_unknown_recipe_is_rejected(core):
     with pytest.raises(KeyError):
         faults.apply(core, "orders", "nope", actor="akash")
+
+
+def test_campus_changes_are_real_code_changes_with_a_visible_effect(tmp_path):
+    """slow_gatepass / gatepass_error edit the gate-pass journey's source; after Restart the traffic shape is the same but the service is not."""
+    import statistics
+
+    import httpx
+
+    settings = replace(Settings.from_env(), home=tmp_path, runtime="process", health_timeout_s=20, stability_window_s=0.1)
+    core = Core.create(settings)
+    try:
+        register_sample(core, "campus-api")
+        good = Deployer(core, guard_regression=False).deploy("campus-api", trigger="initial", actor="test")
+        catalog = {r["id"]: r for r in faults.catalog(core, "campus-api")}
+        assert catalog["slow_gatepass"]["available"] and catalog["gatepass_error"]["available"]
+        assert catalog["slow_gatepass"]["files"] == ["campus/gatepass.py"] and catalog["slow_gatepass"]["kind"] == "environment"
+        assert "F01" not in catalog
+
+        def p50(url):
+            timings = []
+            for _ in range(25):
+                r = httpx.get(url + "/api/v2/gatepass", timeout=10)
+                timings.append(r.elapsed.total_seconds() * 1000)
+            return statistics.median(timings)
+
+        before = p50(good["url"])
+        assert "+    for step in range(41):" in faults.preview(core, "campus-api", "slow_gatepass")
+        assert faults.apply(core, "campus-api", "slow_gatepass", actor="akash") == ["campus/gatepass.py"]
+        bad = Deployer(core, guard_regression=False).deploy("campus-api", trigger="restart", actor="akash", message="Test lab: slow_gatepass")
+        assert p50(bad["url"]) > 5 * max(before, 4.0)
+        faults.reset(core, "campus-api", actor="akash")
+        faults.apply(core, "campus-api", "gatepass_error", actor="akash")
+        broken = Deployer(core, guard_regression=False).deploy("campus-api", trigger="restart", actor="akash", message="Test lab: gatepass_error")
+        codes = {httpx.post(broken["url"] + "/api/v2/gatepass", json={}).status_code for _ in range(10)}
+        assert 500 in codes
+    finally:
+        core.runtime.shutdown()

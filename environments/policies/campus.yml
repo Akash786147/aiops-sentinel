@@ -1,0 +1,14 @@
+name: campus
+version: 1
+description: Demonstration policy pack for campus / enterprise operations. Not any organisation's real policy.
+journeys:
+  gatepass:  {match: ["/gatepass"],  availability: 0.995, latency_p95_ms: 150, min_requests: 20}
+  shuttle:   {match: ["/shuttle"],   availability: 0.99,  latency_p95_ms: 200, min_requests: 20}
+  biometric: {match: ["/biometric"], availability: 0.999, latency_p95_ms: 100, min_requests: 20}
+actions:
+  auto_rollback: {allow_kinds: [crash_loop, oom, unhealthy, memory], require_last_good: true}
+  approve_patch: {authorised_approvers: [akash, aryan, syna], require_confirming_test: true}
+  scale: {require_capacity_evidence: true, automatic: false}
+data_handling:
+  redact: [access_tokens, emails, user_ids]
+  llm_may_see: [source_code, aggregated_telemetry]

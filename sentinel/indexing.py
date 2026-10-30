@@ -115,7 +115,7 @@ def _chunk_source_file(path: str, source: str) -> CodeChunk:
     """Keep non-Python service source searchable and attributable to changed lines."""
     lines = source.splitlines()
     routes = [f"{method.upper()} {route}" for method, route in re.findall(
-        r"\b(?:app|router|server)\.(get|post|put|patch|delete)\s*\(\s*['\"`]([^'\"`]+)", source, re.I
+        r"\b(?:app|router|server)\.(get|post|put|patch|delete)\s*\(\s*['\"`]([^'\"`]+)", source, re.IGNORECASE
     )]
     names = re.findall(r"\b(?:function|class)\s+([A-Za-z_$][\w$]*)|\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>", source)
     symbols = list(dict.fromkeys(a or b for a, b in names))

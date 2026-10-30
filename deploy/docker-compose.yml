@@ -44,6 +44,7 @@ services:
       SENTINEL_HOME: /srv/sentinel
       SENTINEL_NETWORK: sentinel
       SENTINEL_LOKI_URL: http://loki:3100
+      SENTINEL_PROMETHEUS_API: http://prometheus:9090/prometheus
       FASTEMBED_CACHE_PATH: /srv/sentinel/cache/fastembed
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -140,6 +141,7 @@ services:
     environment:
       GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s/grafana/"
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_USERS_DEFAULT_THEME: light
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change-me}

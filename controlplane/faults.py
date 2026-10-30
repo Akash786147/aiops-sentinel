@@ -45,6 +45,36 @@ GENERIC = (
 )
 
 
+@dataclass(frozen=True)
+class Injected:
+    """A change to a data-backed replay service: real traffic shape, injected code change (always labelled as injected)."""
+    id: str
+    title: str
+    description: str
+    package: str
+    fault_class: str
+    file: str
+    old: str
+    new: str
+
+
+INJECTED = (
+    Injected("slow_gatepass", "Slow gate-pass check (extra work per request)",
+             "Injected change: the gate-pass journey re-validates every pass 40 extra times (about 80 ms), so every gate-pass request is slower.",
+             "campus", "latency", "campus/gatepass.py",
+             "    behaviour.work(behaviour.latency_ms(endpoint, rng))\n",
+             "    for step in range(41):  # injected by the Sentinel test lab: re-validates the pass 40 extra times\n"
+             "        behaviour.work(behaviour.latency_ms(endpoint, rng) if step == 0 else 2.0)\n"),
+    Injected("gatepass_error", "Gate-pass bug (500 for creating and updating passes)",
+             "Injected change: creating or updating a pass assumes a department is always present and raises when it is not.",
+             "campus", "errors", "campus/gatepass.py",
+             "    return behaviour.status(endpoint, rng)\n",
+             "    if endpoint.startswith((\"POST\", \"PUT\")):  # injected by the Sentinel test lab: assumes a department is always present\n"
+             "        raise ValueError(\"gate pass has no department\")\n"
+             "    return behaviour.status(endpoint, rng)\n"),
+)
+
+
 def _app_file(core: Core, service: str) -> str | None:
     svc = core.store.get_service(service)
     module = (svc.get("module") or "").split(":")[0]
@@ -64,6 +94,12 @@ def _changes(core: Core, service: str, recipe_id: str) -> dict[str, tuple[str, s
             raise KeyError(f"{recipe_id} needs a FastAPI app module")
         before = ws.read(rel)
         return {rel: (before, before.rstrip("\n") + "\n" + generic.snippet)}
+    injected = next((i for i in INJECTED if i.id == recipe_id), None)
+    if injected:
+        before = ws.read(injected.file)
+        if before.count(injected.old) != 1:
+            raise ValueError(f"{recipe_id} does not apply to the current {injected.file}")
+        return {injected.file: (before, before.replace(injected.old, injected.new))}
     scenario = next((s for s in SCENARIOS if s.id == recipe_id and s.fault), None)
     if scenario is None:
         raise KeyError(f"unknown recipe {recipe_id}")
@@ -87,6 +123,12 @@ def catalog(core: Core, service: str) -> list[dict]:
         recipes.append({"id": scenario.id, "title": scenario.title, "kind": "benchmark", "class": scenario.fault_class, "files": files,
                         "description": f"Benchmark fault {scenario.id}, shipped as the commit \"{scenario.fault.message}\".",
                         "expect": EXPECT[scenario.fault_class], "available": available})
+    for inj in INJECTED:
+        if inj.package != svc.get("package"):
+            continue
+        available = (ws.root / inj.file).exists() and ws.read(inj.file).count(inj.old) == 1
+        recipes.append({"id": inj.id, "title": inj.title, "kind": "environment", "class": inj.fault_class, "files": [inj.file],
+                        "description": inj.description, "expect": EXPECT[inj.fault_class], "available": available})
     app_file = _app_file(core, service)
     for g in GENERIC:
         available = bool(app_file) and g.snippet.strip().splitlines()[0] not in ws.read(app_file)

@@ -9,6 +9,7 @@ export function mount(root) {
     <div class="card"><b>Your own repository</b><p class="muted" style="font-size:13px">Any git repository with a <span class="mono">Dockerfile</span> at its root that listens on the port below and answers the health path. Add a <span class="mono">sentinel.json</span> to enable code tracing (see samples/orders/sentinel.json).</p>
       <div class="form2" style="max-width:none"><div class="row2"><label>Name<input id="name" placeholder="billing"></label><label>Branch<input id="branch" placeholder="main"></label></div>
       <label>Git URL<input id="url" placeholder="https://github.com/you/billing.git"></label>
+      <div class="row2"><label>Port the app listens on<input id="port" type="number" value="8000"></label><label>Health path (must return 200)<input id="health" placeholder="/health" value="/health"></label></div>
       <div class="row2"><label>Memory limit (MiB)<input id="mem" type="number" value="256"></label><label>CPU limit (cores)<input id="cpu" type="number" step="0.1" value="0.5"></label></div>
       <div><button class="btn" id="add">Add and deploy</button></div></div></div></div>`;
   root.onclick = async e => {
@@ -17,7 +18,7 @@ export function mount(root) {
       if (s) { await api.addService({ kind: 'sample', name: s.dataset.sample, actor: actor() }); location.hash = '#/service/' + s.dataset.sample; }
       if (e.target.id === 'add') {
         const v = id => document.getElementById(id).value.trim();
-        await api.addService({ kind: 'git', name: v('name'), url: v('url'), branch: v('branch') || null, mem_limit_mb: Number(v('mem')), cpu_limit: Number(v('cpu')), actor: actor() });
+        await api.addService({ kind: 'git', name: v('name'), url: v('url'), branch: v('branch') || null, mem_limit_mb: Number(v('mem')), cpu_limit: Number(v('cpu')), port: Number(v('port')) || null, health_path: v('health') || null, actor: actor() });
         location.hash = '#/service/' + v('name');
       }
     } catch (err) { notice(err.message); }

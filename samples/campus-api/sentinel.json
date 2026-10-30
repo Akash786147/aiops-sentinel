@@ -1,0 +1,14 @@
+{
+  "name": "campus-api",
+  "module": "campus.app:app",
+  "package": "campus",
+  "port": 8000,
+  "health_path": "/health",
+  "metrics_path": "/sentinel/metrics",
+  "owner": "team-campus-ops",
+  "environment": "campus",
+  "traffic": "replay",
+  "shared_code": [
+    "common"
+  ]
+}

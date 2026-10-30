@@ -55,7 +55,7 @@ export function lineChart(o) {
 
 export function hbars(rows, o = {}) {
   const { max = 1, format = v => `${Math.round(v * 100)}%` } = o;
-  return `<div class="hbars">${rows.map(r => `<div class="hb"><div class="hb-l ${r.hi ? 'hi' : ''}" title="${esc(r.label)}">${esc(r.label)}</div><div class="hb-t">${r.ghost != null ? `<i class="ghost" style="width:${Math.min(100, (r.ghost / max) * 100)}%;background:${r.color || 'var(--indigo)'}"></i>` : ''}<i style="width:${Math.min(100, ((r.value ?? 0) / max) * 100)}%;background:${r.color || 'var(--indigo)'}"></i></div><div class="hb-v">${r.value == null ? '—' : format(r.value)}</div></div>`).join('')}</div>`;
+  return `<div class="hbars">${rows.map(r => `<div class="hb"><div class="hb-l ${r.hi ? 'hi' : ''}" title="${esc(r.tip || r.label)}">${esc(r.label)}</div><div class="hb-t">${r.ghost != null ? `<i class="ghost" style="width:${Math.min(100, (r.ghost / max) * 100)}%;background:${r.color || 'var(--indigo)'}"></i>` : ''}<i style="width:${Math.min(100, ((r.value ?? 0) / max) * 100)}%;background:${r.color || 'var(--indigo)'}"></i></div><div class="hb-v">${r.value == null ? '—' : format(r.value)}</div></div>`).join('')}</div>`;
 }
 
 export const FEATURES = [

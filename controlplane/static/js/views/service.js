@@ -6,7 +6,7 @@ import { act, diffView, PALETTE, DEP_KIND } from '../shared.js';
 import { notice } from '../main.js';
 
 let P = {}, detail = null, detailKey = '', files = null, current = null, logTimer = null;
-const TABS = [['live', 'Live'], ['deployments', 'Deployments'], ['code', 'Code'], ['logs', 'Logs'], ['settings', 'Settings']];
+const TABS = [['live', 'Live'], ['deployments', 'Deployments'], ['code', 'Code'], ['logs', 'Logs'], ['policy', 'Policy'], ['settings', 'Settings']];
 
 export function mount(root, params) {
   P = params; detail = null; detailKey = ''; files = null; current = null;
@@ -48,7 +48,28 @@ export function mount(root, params) {
     logTimer = setInterval(() => (location.hash.includes('/logs') ? pull() : clearInterval(logTimer)), 3000);
   }
   if (P.tab === 'settings') body.innerHTML = '<div class="card" data-r="settings"></div>';
+  if (P.tab === 'policy') { body.innerHTML = '<div data-r="policy"><div class="empty"><b>Loading policy…</b></div></div>'; loadPolicy(); clearInterval(logTimer); logTimer = setInterval(() => (location.hash.includes('/policy') ? loadPolicy() : clearInterval(logTimer)), 5000); }
   refreshDetail();
+}
+
+async function loadPolicy() {
+  let r;
+  try { r = await api.policy(P.name); } catch (e) { return; }
+  const el = document.querySelector('[data-r=policy]');
+  if (!el) return;
+  const a = r.pack.actions;
+  const journeys = r.journeys.length ? `<table class="t"><tr><th>journey</th><th class="n">requests</th><th class="n">availability</th><th class="n">SLO</th><th class="n">p95 ms</th><th class="n">target ms</th><th>status</th></tr>${r.journeys.map(j => `<tr><td>${esc(j.journey)}</td><td class="n">${j.requests}</td>
+      <td class="n">${j.availability == null ? '·' : (j.availability * 100).toFixed(2) + '%'}</td><td class="n">${(j.slo * 100).toFixed(2)}%</td><td class="n">${j.p95_ms == null ? '·' : j.p95_ms}</td><td class="n">${j.latency_p95_target_ms}</td>
+      <td>${j.breached === null ? chip(j.reason || 'no data', '') : j.breached ? chip('SLO breached', 'red') : chip('within SLO', 'green')}</td></tr>`).join('')}</table>`
+    : '<p class="muted">This pack defines no business journeys.</p>';
+  setHTML(el, `<div class="card"><div style="display:flex;gap:10px;align-items:center"><h3 style="margin:0">Policy pack: ${esc(r.pack.name)} v${r.pack.version}</h3>${chip('demonstration policy', 'orange')}</div>
+      <p class="muted" style="font-size:13px">${esc(r.pack.description)}</p></div>
+    <div class="sec-h"><h2>Business-journey SLOs</h2><span class="sub">last ${r.window_s} s, 5xx counts as unavailable, p95 is request-weighted</span></div><div class="card">${journeys}</div>
+    <div class="sec-h"><h2>What Sentinel may do</h2><span class="sub">decided by rule, never by the language model; every decision is audited</span></div>
+    <div class="card"><table class="t"><tr><th>action</th><th>rule</th></tr>
+      <tr><td>Automatic rollback to last good</td><td>${a.auto_rollback && a.auto_rollback.allow_kinds.length ? 'only for ' + a.auto_rollback.allow_kinds.map(k => chip(k, 'green')).join(' ') + '; anything else goes to a person' : chip('never automatic: a person decides', 'orange')}</td></tr>
+      <tr><td>Approve a patch</td><td>${a.approve_patch && a.approve_patch.authorised_approvers.length ? 'only ' + a.approve_patch.authorised_approvers.map(esc).join(', ') : 'any named approver'}${a.approve_patch && a.approve_patch.require_confirming_test ? ', and only with a confirming test' : ''}</td></tr>
+      <tr><td>Scale</td><td>${a.scale && a.scale.require_capacity_evidence ? 'blocked without capacity evidence; ' : ''}${a.scale && a.scale.automatic ? 'may be automatic' : 'always needs a person'}</td></tr></table></div>`);
 }
 
 async function refreshDetail() {
