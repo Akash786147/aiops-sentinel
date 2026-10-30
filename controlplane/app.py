@@ -53,10 +53,12 @@ class AddService(BaseModel):
 
 
 class ServicePatch(BaseModel):
+    port: int | None = Field(default=None, ge=1, le=65535)
     mem_limit_mb: int | None = Field(default=None, ge=32, le=8192)
     cpu_limit: float | None = Field(default=None, gt=0, le=8)
     auto_rollback: bool | None = None
     owner: str | None = Field(default=None, max_length=60)
+    health_path: str | None = Field(default=None, min_length=1, max_length=200, pattern=r"^/")
 
 
 class FileWrite(BaseModel):

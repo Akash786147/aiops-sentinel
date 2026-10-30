@@ -15,7 +15,7 @@ x-defaults: &defaults
 services:
   traefik:
     <<: *defaults
-    image: traefik:v3.1.6
+    image: traefik:v3.6.1
     command:
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
@@ -24,7 +24,7 @@ services:
       - --ping=true
       - --accesslog=true
       - --metrics.prometheus=true
-    ports: ["80:80"]
+    ports: ["8080:80"]
     volumes: ["/var/run/docker.sock:/var/run/docker.sock:ro"]
     healthcheck:
       test: ["CMD", "traefik", "healthcheck", "--ping"]
@@ -89,7 +89,6 @@ services:
     image: prom/alertmanager:v0.27.0
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
-      - --web.external-url=/alertmanager/
       - --web.route-prefix=/alertmanager
     volumes: ["./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro"]
     labels:

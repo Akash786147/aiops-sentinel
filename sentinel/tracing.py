@@ -167,7 +167,7 @@ def _candidate_block(index: CodeIndex, suspect: Suspect, with_tags: bool) -> str
     chunk = next(c for c in index.chunks if c.id == suspect.chunk_id)
     code = "\n".join(chunk.text.splitlines()[:60])
     tags = f"\nEvidence tags: {'; '.join(suspect.reasons) or 'none'}" if with_tags else ""
-    return f"### id: {suspect.chunk_id}  ({chunk.symbol}){tags}\n```python\n{code}\n```"
+    return f"### id: {suspect.chunk_id}  ({chunk.symbol}){tags}\n```text\n{code}\n```"
 
 
 def llm_rerank(index: CodeIndex, packet: EvidencePacket, suspects: list[Suspect], top_n: int = 8, with_tags: bool = True) -> tuple[list[Suspect], dict]:

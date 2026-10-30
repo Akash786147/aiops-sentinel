@@ -1,80 +1,273 @@
 # AIOps Sentinel
 
-AIOps Sentinel monitors a **shared server**. When a tenant service gets into trouble it does not
-scale it blindly: it attributes the incident to one service and owner, builds an evidence packet
-(telemetry, exceptions, the deployment diff), uses **semantic code search and an LLM** to trace the
-symptom to the responsible **function**, and **generates a test that confirms it** (fails on the
-deployed code, passes on the known-good code). Every decision is written to an audit trail and a
-human approves any change.
+AIOps Sentinel is a code-aware AIOps project for services sharing a host. It connects service-level telemetry to source code: detect and attribute a regression, collect a versioned evidence packet, rank likely code locations, generate a test that distinguishes faulty from known-good code, and record the reasoning for review.
 
-Start here: **[docs/PROJECT_GUIDE.md](docs/PROJECT_GUIDE.md)** (what, why, how, tools, evaluation,
-results, limitations, team responsibilities). Slides: `docs/AIOps_Sentinel_Review.pptx`.
+The repository contains two related but distinct systems:
 
-## Quick start
+1. **The evaluated incident pipeline and Sentinel Console** (`sentinel/`, `shared_server/`, `benchmark/`, `evaluation/`, `panel/`) reproduce incidents and evaluate detection, localisation, test generation, and action decisions.
+2. **The Sentinel platform** (`controlplane/`, `samples/`, `deploy/`) runs and manages monitored services, watches their health, rolls back selected deployment failures, investigates incidents, and can apply a proposed patch only after a named human approves it.
 
-```bash
-python -m venv .venv && . .venv/bin/activate        # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-echo OPENAI_API_KEY=sk-... > .env                    # or GROQ_API_KEY=gsk-... (optional: LLM steps)
+The platform is a research/demo system, not a hardened production service. Read the [runbook](docs/RUNBOOK.md) before exposing it on a network. For the project rationale, method, results, and limitations, see the [Project Guide](docs/PROJECT_GUIDE.md). The workflow and stage ownership are in [WORKFLOW.md](docs/WORKFLOW.md).
 
-python -m benchmark.demo F01                         # live: shared server -> incident -> diagnosis -> test
-pytest -q && ruff check app services tests scripts sentinel benchmark evaluation panel controlplane samples
+## Contents
+
+- [Capabilities](#capabilities)
+- [How the incident pipeline works](#how-the-incident-pipeline-works)
+- [Architecture and repository layout](#architecture-and-repository-layout)
+- [Requirements and setup](#requirements-and-setup)
+- [Run the evaluated pipeline](#run-the-evaluated-pipeline)
+- [Sentinel Console](#sentinel-console)
+- [Run the Sentinel platform](#run-the-sentinel-platform)
+- [Configuration](#configuration)
+- [Evaluation and current results](#evaluation-and-current-results)
+- [Safety, boundaries, and limitations](#safety-boundaries-and-limitations)
+- [Development](#development)
+- [Further documentation](#further-documentation)
+
+## Capabilities
+
+- Monitors a shared-server registry of tenant services and attributes measurements to a service and route.
+- Detects changes using per-service and per-route telemetry, robust baseline comparisons, persistence checks, and absolute-change floors. Fixed alert thresholds are retained as a baseline.
+- Collects exceptions, stack frames, slow/failed request samples, service ownership, deployment history, behavioural diffs, and blame into a redacted, hashed evidence packet.
+- Indexes Python code into AST-derived functions and classes; ranks candidates with BM25, dense embeddings, stack traces, route handlers, call paths, and changed lines.
+- Optionally asks a configured LLM to re-rank candidates, generate tests, and propose patches. LLM output is constrained and validated; deterministic methods remain available.
+- Runs generated tests in throw-away workspaces against both the incident version and a known-good version. A test confirms a hypothesis only when it fails by assertion on the faulty version and passes on the known-good version.
+- Stores deployments, incidents, settings, and audit events in SQLite in platform mode; the benchmark pipeline also writes JSONL audit logs.
+- Provides a browser console, incident timeline, source/diff views, test lab, service lifecycle controls, and Prometheus metrics.
+- Packages the platform with Prometheus, Alertmanager, cAdvisor, node-exporter, Loki, Promtail, Grafana, and Traefik.
+
+## How the incident pipeline works
+
+The evaluated pipeline implements stages 1–6 below. Audit and guardrails apply throughout. The platform adds service lifecycle management and human-approved patch deployment.
+
+```mermaid
+flowchart LR
+    A[Service telemetry] --> B[Change-aware detection and attribution]
+    B --> C[Evidence packet]
+    C --> E[Hybrid code ranking]
+    D[AST code index] --> E
+    E --> F[Action recommendation]
+    F --> G[Generated confirming test]
+    G --> H[Run on faulty and known-good code]
+    H --> I[Human review]
+    I --> J[Platform: approve patch and deploy]
+    A -. every stage .-> K[(Audit trail)]
+    B -. every stage .-> K
+    C -. every stage .-> K
+    E -. every stage .-> K
+    G -. every stage .-> K
 ```
 
-## Sentinel Console (live panel)
+1. **Monitor.** The shared-server sample services record per-route latency, errors, exception events and request samples. Sentinel scrapes service metrics and reads per-process CPU and RSS.
+2. **Detect and attribute.** Compare post-change measurements with a pre-change baseline using robust statistics and persistence criteria. Traffic increase alone is not treated as a code fault. Insufficient data yields no conclusion.
+3. **Build evidence.** Assemble anomalous signals, exceptions, sampled requests, service owner and code path, and deployment diff/blame. Behaviour-neutral changes are distinguished from syntax-level changes after comments/docstrings are removed. Sensitive strings are redacted before model or audit use.
+4. **Index code.** `sentinel/indexing.py` creates function/method, class-header, and module-level chunks from Python ASTs. It records route associations and a lightweight call/reference graph. Retrieval combines identifier-aware BM25 and optional BAAI/bge-small-en-v1.5 dense embeddings (fastembed/ONNX on CPU).
+5. **Trace and decide.** `sentinel/tracing.py` combines lexical and dense similarity with stack-frame, route, call-path, behavioural changed-line, and changed-file evidence. The deterministic rank is primary; an optional LLM can re-rank a bounded candidate set. The action is `code_fix`, `capacity_scale`, or `investigate` based on evidence and confidence.
+6. **Confirm.** A deterministic template or optional LLM generates a pytest. An AST guard checks generated tests before execution. The runner strips API keys, uses isolated copies and a timeout, and distinguishes assertion failures from crashes.
+7. **Human approval and platform response.** The research pipeline records a handoff for human review. In platform mode, crash loops, OOM/memory exhaustion, and failed health checks may trigger an automatic rollback to the last good deployment. Latency/error regressions are investigated and proposed, not automatically patched. A named approver can approve a validated patch; the platform applies it to its managed working copy and uses the normal build and health-gated deployment path.
 
-```bash
-python -m panel                 # http://127.0.0.1:8080  (Replay is the default; Live starts the real services)
-python -m panel --speed 30      # faster replay, handy for screenshots
-```
+The production mapping, detector details, retrieval weights, test guard, and design decisions are documented in [PROJECT_GUIDE.md](docs/PROJECT_GUIDE.md) and [WORKFLOW.md](docs/WORKFLOW.md).
 
-```bash
-python -m evaluation.benchmark record  --seeds 0 1 2   # ~50 s live traffic per scenario, 45 runs
-python -m evaluation.benchmark analyze --seeds 0 1 2   # pipeline + baselines (+ LLM if a key is set)
-python -m evaluation.benchmark analyze-model --seeds 0 1 2 --provider groq --model openai/gpt-oss-120b --label gptoss
-python -m evaluation.benchmark score                   # evaluation/results/summary.json
-```
+## Architecture and repository layout
 
-## Sentinel platform (runs the services it monitors)
-
-The platform is a long-running service. You pick services to monitor (the three samples, or any git repo with a
-Dockerfile), it **builds and runs them itself**, watches them, and reacts when something goes wrong. Restart a service from
-the UI after a code change and the new version is built and health-checked before it replaces the old one; if it crashes,
-runs out of memory, crash-loops or fails its health check, Sentinel rolls back to the last good version, then investigates
-and proposes a fix for a human to approve. The **Test lab** page injects sample faults into a monitored service to show this.
-
-```bash
-# on an Ubuntu server (22.04/24.04, 2+ vCPU, 4+ GB RAM)
-git clone <repo> && cd aiops-sentinel
-sudo bash deploy/install.sh            # Docker + compose plugin, starts the stack, enables start on boot
-# open http://<server-ip>/             (Grafana at /grafana/, Prometheus at /prometheus/)
-
-# on a laptop, no Docker: processes instead of containers
-SENTINEL_BOOTSTRAP=orders,inventory,payments python -m controlplane --port 8800
-```
-
-Stack: Traefik (single entry point), Prometheus + Alertmanager, cAdvisor, node-exporter, Loki + Promtail, Grafana, and the
-control plane (FastAPI + SQLite). Full steps, day-to-day commands and troubleshooting: **[docs/RUNBOOK.md](docs/RUNBOOK.md)**.
-Design: [spec](docs/superpowers/specs/2026-10-09-sentinel-platform-design.md).
-
-## Repository map
-
-| Path | What it is |
+| Path | Responsibility |
 | --- | --- |
-| `sentinel/` | The pipeline, one module per step: `telemetry`, `detection`, `context`, `indexing`, `tracing`, `testgen`, `audit`, `pipeline`, `llm`, `registry` |
-| `shared_server/` | System under observation: orders, inventory, payments + shared telemetry middleware + `services.yaml` |
-| `controlplane/` | Sentinel platform: runtime (Docker/process), deployer, monitor, detector, policy, investigator, fault lab, REST + SSE API, UI |
-| `samples/` | Deployable versions of orders, inventory, payments (Dockerfile, `/health`, `/metrics`) |
-| `deploy/` | Ubuntu stack: Compose, Prometheus/Alertmanager/Loki/Promtail/Grafana configs, install script, systemd unit |
-| `panel/` | Sentinel Console: FastAPI + vanilla-JS web panel (live floor, incident, trace, proof, decision, results) |
-| `benchmark/` | 12 faults + 3 controls with ground truth, git deployment builder, load generator, live recorder, demo |
-| `evaluation/` | `benchmark.py` harness, results (`results/summary.json`, per-run JSON, audit logs) |
-| `tests/` | Unit tests for detection, indexing, tracing, test guard (+ v0 tests) |
-| `docs/` | Project guide, workflow, slides (+ superseded v0 documents) |
-| `app/`, `services/`, `microservices/`, `web/` | v0 prototype; `services/retrieval.py` is kept as the "v0" retrieval baseline |
+| `sentinel/` | Reusable incident pipeline: telemetry, detection, registry, evidence/context, AST index, tracing, LLM client, test generation, audit, orchestration. |
+| `shared_server/` | Three sample tenant services (`orders`, `inventory`, `payments`), common telemetry middleware, and `services.yaml` registry used by the evaluated pipeline. |
+| `benchmark/` | Ground-truth scenario catalogue, seeded deployment/workspace builder, load generator, recorder, and live demo. |
+| `evaluation/` | Benchmark harness, baselines, ablations, scoring tools, and committed results. `evaluation/README.md` has exact commands. |
+| `panel/` | Sentinel Console: FastAPI server and browser UI for replay/live benchmark runs and results. |
+| `controlplane/` | Platform API/UI, SQLite store, service registry, monitor, detector, policy, investigator, deployer, fault lab, event bus, and Docker/process runtimes. |
+| `samples/` | Deployable `orders`, `inventory`, and `payments` services. Each has a `sentinel.json` manifest and health/metrics endpoints. |
+| `deploy/` | Platform Compose stack and configuration for Prometheus, Alertmanager, Loki, Promtail, Grafana, Traefik, installation, and systemd. |
+| `tests/` | Unit and integration coverage for pipeline, panel, deployment, runtime, and control-plane behaviour. |
+| `docs/` | Project guide, workflow, runbook, charter, demo, exercises, responsible-AI notes, design specs, and review materials. |
+| `app/`, `services/`, `microservices/`, `web/` | Earlier v0 prototype. Retained for history and baselines; not the current v1 incident pipeline. |
+| `Dockerfile`, root `docker-compose.yml` | Earlier v0 prototype stack. The managed platform uses `deploy/docker-compose.yml`. |
 
-## Safety boundary
+### Main runtime relationships
 
-Sentinel reads telemetry, logs and code; it never edits code, restarts or scales services. Generated
-tests pass a static guard and run in a throw-away copy with API keys stripped. Steps 7–10 (fix PR,
-CI/CD rollout, post-deploy watch) are designed but intentionally not automated.
+- **Evaluated pipeline:** benchmark recordings and git workspaces → `sentinel.pipeline` → detector/context/index/tracer/test generator → JSONL audit and results.
+- **Console:** `python -m panel` → `panel.server` → replay data or live benchmark runner → browser UI.
+- **Managed platform:** `python -m controlplane` or the deploy stack → `controlplane.app` → runtime, deployer, monitor, detector and investigator → managed samples or registered Git services.
+
+The benchmark’s `shared_server/services.yaml` ports (9101–9103) and the managed samples’ container port (8000 per service) belong to different execution modes.
+
+## Requirements and setup
+
+- Python 3.11 or 3.12 (project lint target is Python 3.12).
+- Git, for benchmark deployment histories and repository inspection.
+- For Docker platform mode: Docker Engine and the Docker Compose plugin.
+- Optional: an LLM provider key or a local Ollama server. Deterministic ranking and template tests work without an LLM. Dense retrieval may download the embedding model on first use; set `SENTINEL_DENSE=0` to disable it.
+
+Create an environment and install Python dependencies:
+
+```bash
+python -m venv .venv
+# Linux/macOS
+source .venv/bin/activate
+# Windows PowerShell: .venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+Copy `.env.example` to `.env` and set only the provider configuration you intend to use. Do not commit `.env` or API keys. The project’s LLM adapter supports OpenAI, Groq, and Ollama; see [Configuration](#configuration).
+
+## Run the evaluated pipeline
+
+Run one live end-to-end scenario (starts sample services, generates baseline and incident traffic, and analyzes the recorded deployment):
+
+```bash
+python -m benchmark.demo F01
+```
+
+Use an existing recording if available, or skip LLM use:
+
+```bash
+python -m benchmark.demo F01 --reuse
+python -m benchmark.demo F01 --no-llm
+```
+
+Scenario IDs are `F01`–`F12` for injected faults and `H01`–`H03` for controls. The current list and fault descriptions are in [`benchmark/scenarios.py`](benchmark/scenarios.py). Benchmark runs create working data under `data/`; generated run data and model caches are not source artifacts.
+
+## Sentinel Console
+
+The Console is a local browser interface for the evaluated pipeline. Replay is the safe default; live mode starts services and runs traffic/deployment steps.
+
+```bash
+python -m panel
+# http://127.0.0.1:8080
+
+python -m panel --speed 10 --no-browser
+```
+
+From the UI, choose a scenario, select replay or live mode, inspect each pipeline stage, source evidence, generated test, and audit events. Approval records a named review event for the benchmark handoff. The Console is separate from the service-managing control plane.
+
+## Run the Sentinel platform
+
+The platform builds and manages services itself. It can monitor the bundled samples or a compatible Git repository. In Docker mode, use the Ubuntu deployment instructions in [RUNBOOK.md](docs/RUNBOOK.md); the Compose file publishes Traefik on host port **8080** by default (`8080:80`). Check the actual host mapping before using URLs from older runbook text.
+
+```bash
+cp .env.example .env   # optional provider keys and settings
+make up
+make ps
+```
+
+The Compose command is configured in the Makefile as `docker compose -f deploy/docker-compose.yml`. The dashboard is available at `http://localhost:8080/`; Grafana, Prometheus, and Alertmanager are routed under `/grafana/`, `/prometheus/`, and `/alertmanager/`. The platform state is persisted under `/srv/sentinel` by the server deployment configuration, including SQLite state and managed service workspaces.
+
+For local process mode without Docker:
+
+```bash
+SENTINEL_BOOTSTRAP=orders,inventory,payments python -m controlplane --host 127.0.0.1 --port 8800
+```
+
+To disable the generated sample traffic, set `SENTINEL_TRAFFIC=0`. To add another sample or a Git service, use the UI's Add service action. A monitored Git repository needs a Dockerfile and an HTTP app; a `/health` endpoint is used by default. Exposing Prometheus text at `/metrics` enables metric-based monitoring, while lifecycle and resource monitoring can still operate without it.
+
+### Platform operations
+
+```bash
+make logs       # control-plane logs
+make ps         # Compose service status
+make config     # validate Compose configuration
+make down       # stop platform components; managed service containers are separate
+make test       # run pytest
+make lint       # run Ruff
+make backup     # archive /srv/sentinel (server deployment)
+make clean-services  # remove containers labeled as managed by Sentinel
+```
+
+From the dashboard, operators can inspect services, deployments, diffs, logs and incidents; restart, stop, start, or roll back a service; configure resource limits; edit the managed working copy; and use Test lab to inject/reset sample faults. Actions and approvals are recorded in the audit trail. Review the runbook for installation, maintenance, security and troubleshooting details.
+
+## Configuration
+
+Settings are read from the environment; `.env.example` is the template. Common options:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `SENTINEL_RUNTIME` | `process` | Platform runtime: `process` locally or `docker` in Compose. |
+| `SENTINEL_HOME` | `data/sentinel` under the repo | Platform state root (SQLite, service repositories, builds, runs). |
+| `SENTINEL_BOOTSTRAP` | `orders,inventory,payments` | Comma-separated samples to register at startup. |
+| `SENTINEL_TRAFFIC` | `1` | Start generated sample traffic at platform startup (`0` disables it). |
+| `SENTINEL_USE_LLM` | `1` | Allow optional LLM investigation steps when credentials are available (`0` disables). |
+| `SENTINEL_DENSE` | `1` | Allow dense embedding retrieval (`0` disables). |
+| `SENTINEL_MONITOR_INTERVAL_S` | `1` | Platform sampling interval in seconds. |
+| `SENTINEL_HEALTH_TIMEOUT_S` | `30` | Deployment health-gate timeout. |
+| `SENTINEL_STABILITY_WINDOW_S` | `120` | Stability period used by platform deployment/policy. |
+| `SENTINEL_REGRESSION_AFTER_S` | `60` | Delay before checking a deployment for regressions. |
+| `SENTINEL_DEFAULT_MEM_MB` | `256` | Default managed-service memory limit. |
+| `SENTINEL_DEFAULT_CPUS` | `0.5` | Default managed-service CPU limit. |
+| `SENTINEL_NETWORK` | `sentinel` | Docker network for managed containers. |
+| `SENTINEL_LOKI_URL` | unset | Loki endpoint for log enrichment (Compose sets it). |
+| `OPENAI_API_KEY` | unset | OpenAI credentials; selected by default when present. |
+| `OPENAI_MODEL` | adapter default | OpenAI model override. |
+| `OPENAI_REASONING_EFFORT` | `medium` | OpenAI reasoning effort setting. |
+| `GROQ_API_KEY` | unset | Groq credentials; used when selected and available. |
+| `GROQ_MODEL` | adapter default | Groq model override. |
+| `SENTINEL_LLM` | auto | Provider selector: `openai`, `groq`, or `ollama`. |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Local/remote Ollama API URL. |
+| `OLLAMA_MODEL` | `qwen2.5-coder:7b` | Ollama model name. |
+
+The exact defaults and available settings can change; inspect [`controlplane/config.py`](controlplane/config.py), [`sentinel/llm.py`](sentinel/llm.py), and `.env.example` when configuring a checkout.
+
+## Evaluation and current results
+
+The benchmark contains 12 code faults and 3 controls, each run with three seeds (45 recordings total). It compares the change-aware detector with fixed thresholds; hybrid code tracing with v0 retrieval, blame-recent-changes, BM25, dense, plain RAG+LLM and ablations; test generators; and action policy with “scale on every alert.” Seeds 1–2 are held out from development. See [evaluation/README.md](evaluation/README.md) to reproduce and [evaluation/results/summary.md](evaluation/results/summary.md) for the generated tables.
+
+Selected recorded results:
+
+| Measure | Result | Scope |
+| --- | ---: | --- |
+| Change-aware detection recall | 92% (33/36) | Fault scenarios; correctly attributed to the service first in 92%. |
+| Quiet-deployment false alarms | 33% (2/6) | H01/H02 runs; detector trade-off. |
+| Deterministic hybrid function Top-1 | 85% | 33 detected fault recordings; 86% on held-out seeds. |
+| Hybrid + primary LLM function Top-1 | 82% | Same 33 recordings; did not beat deterministic hybrid Top-1. |
+| Template confirming-test rate | 94% | 33 detected fault recordings. |
+| Primary LLM confirming-test rate | 91% | 33 detected fault recordings. |
+| Evidence-driven action accuracy | 82% | 45 total runs; “scale on every alert” scored 13%. |
+
+These numbers describe the small, authored Python benchmark, not production performance. F09’s subtle latency regression was not detected in any seed; two of six quiet deployments caused false incidents. The benchmark’s faults and tracer are authored together, there are only 15 scenarios, and all faults are change-induced. LLM test results for the comparison model have a smaller sample due to provider limits. Detailed misses, ablations, and interpretation are in the Project Guide.
+
+Older v0 retrieval evaluation assets under `evaluation/run_evaluation.py` and `evaluation/results/` are retained for historical comparison. They are not the v1 fault-ground-truth evaluation.
+
+## Safety boundaries and limitations
+
+- **Human decision boundary:** incident evidence and model output do not authorize a code change. Platform patch application requires a named approver. Automatic rollback is limited to configured unhealthy lifecycle/resource conditions; latency and error regressions are proposed for review.
+- **Test isolation:** generated tests run on temporary copies with API keys removed, a static AST guard, and a timeout. This is a useful safety layer, not a hardened hostile-code sandbox.
+- **Tenant scope:** code retrieval is scoped to the registered service and allowed shared code in the pipeline. Production use would need stronger identity, authorization, and repository isolation.
+- **Platform privilege:** Docker runtime needs access to the Docker socket, which is effectively host-root access. Keep the platform on a trusted network and add authentication/TLS before exposing it. Grafana anonymous viewer access is enabled by the provided Compose configuration.
+- **Data retention:** SQLite, logs, generated samples, test code, deployment snapshots, and audit events may contain operational details. Set access and retention policies appropriate to the environment.
+- **Detection limits:** the detector needs enough before/after measurements and a known change boundary. Hand-set floors miss small regressions; noisy routes can cause false alerts.
+- **Retrieval and model limits:** Python AST indexing is not a general multi-language code index. Dense model availability/download, stale indexes, incomplete telemetry, model errors, unsupported claims, and output variability can affect diagnosis. LLM output is validated but still requires review.
+- **Test limits:** timing and memory tests can be sensitive to shared machine load. Passing the faulty/known-good test pair is evidence for a hypothesis, not proof of a safe remediation.
+- **Not implemented/evaluated end to end:** automatic PR creation, CI/CD integration, staged rollout, and post-deploy watch in the original research workflow. Platform-managed patch approval/deployment is a local control-plane feature and is not covered by the 45-run benchmark scores.
+
+## Development
+
+Run the repository checks:
+
+```bash
+make test
+make lint
+```
+
+Equivalent commands:
+
+```bash
+python -m pytest -q
+ruff check controlplane samples tests panel sentinel benchmark evaluation
+```
+
+To regenerate the benchmark result files, follow [`evaluation/README.md`](evaluation/README.md). A complete record/analyze run can take tens of minutes and may make paid LLM requests. The Console can replay existing data without rerunning the benchmark.
+
+## Further documentation
+
+- [Project Guide](docs/PROJECT_GUIDE.md): research questions, detailed methods, evaluation design/results, limits, team ownership.
+- [Workflow](docs/WORKFLOW.md): stage-by-stage operational flow and owners.
+- [Runbook](docs/RUNBOOK.md): platform installation, operation, incident demo, troubleshooting, and uninstall.
+- [Demo script](docs/DEMO_SCRIPT.md): suggested walkthrough.
+- [Exercises](docs/EXERCISES.md): project learning exercises.
+- [Responsible AI and prompts](docs/PROMPTS_AND_RESPONSIBLE_AI.md): prompt and safety discussion.
+- [Project charter](docs/PROJECT_CHARTER.md): scope, team and success criteria.
+- [Evaluation instructions](evaluation/README.md): record, analyze, compare models, and score.
+- Design documents: [`docs/superpowers/specs/`](docs/superpowers/specs/) and [`docs/superpowers/plans/`](docs/superpowers/plans/).
+- Review deck: [`docs/AIOps_Sentinel_Review.pptx`](docs/AIOps_Sentinel_Review.pptx).

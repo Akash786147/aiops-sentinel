@@ -82,8 +82,8 @@ async function saveFile() {
 async function saveSettings() {
   const v = id => document.getElementById(id);
   try {
-    await api.patchService(P.name, { mem_limit_mb: Number(v('mem').value), cpu_limit: Number(v('cpu').value), auto_rollback: v('auto').checked, owner: v('owner').value });
-    notice('Saved. Limits apply from the next Restart.');
+    await api.patchService(P.name, { port: Number(v('port').value), mem_limit_mb: Number(v('mem').value), cpu_limit: Number(v('cpu').value), auto_rollback: v('auto').checked, owner: v('owner').value, health_path: v('health').value.trim() });
+    notice('Saved. Settings apply from the next Restart.');
     refreshDetail();
   } catch (e) { notice(e.message); }
 }
@@ -122,7 +122,8 @@ export function update(force = false) {
       <td>${d.image && d.status !== 'failed' && !(c && c.id === d.id) ? `<button class="btn ghost sm" data-a="rollback" data-to="${d.id}" ${s.busy ? 'disabled' : ''}>Roll back here</button>` : ''}</td></tr>`).join('')}</table>`);
   }
   if (P.tab === 'settings' && detail && !root.querySelector('#mem')) {
-    setHTML(root.querySelector('[data-r=settings]'), `<div class="form2"><div class="row2"><label>Memory limit (MiB)<input id="mem" type="number" min="32" value="${detail.mem_limit_mb}"></label><label>CPU limit (cores)<input id="cpu" type="number" step="0.1" min="0.1" value="${detail.cpu_limit}"></label></div>
+    setHTML(root.querySelector('[data-r=settings]'), `<div class="form2"><div class="row2"><label>Application port<input id="port" type="number" min="1" max="65535" value="${detail.port}"></label><label>Health check path<input id="health" value="${esc(detail.health_path || '/health')}" placeholder="/health"></label></div>
+      <div class="row2"><label>Memory limit (MiB)<input id="mem" type="number" min="32" value="${detail.mem_limit_mb}"></label><label>CPU limit (cores)<input id="cpu" type="number" step="0.1" min="0.1" value="${detail.cpu_limit}"></label></div>
       <label>Owner<input id="owner" value="${esc(detail.owner || '')}"></label>
       <label style="display:flex;gap:10px;align-items:center"><input id="auto" type="checkbox" ${detail.auto_rollback ? 'checked' : ''}> Roll back automatically on crash loop, OOM kill, sustained unhealthy or memory exhaustion</label>
       <div class="muted" style="font-size:12.5px">Source: ${esc(detail.source)} · module ${esc(detail.module || '—')} · health ${esc(detail.health_path)} · metrics ${esc(detail.metrics_path || 'none')}</div>

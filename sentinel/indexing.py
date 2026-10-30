@@ -19,7 +19,8 @@ from pathlib import Path
 WORD = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 HTTP_METHODS = {"get", "post", "put", "patch", "delete"}
-IGNORED_DIRS = {".git", "__pycache__", "logs", "sentinel_generated", ".venv"}
+JS_EXTENSIONS = {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}
+IGNORED_DIRS = {".git", "__pycache__", "logs", "sentinel_generated", ".venv", "node_modules", "dist", "build"}
 DENSE_MODEL = "BAAI/bge-small-en-v1.5"
 
 
@@ -110,17 +111,36 @@ def chunk_python(path: str, source: str) -> list[CodeChunk]:
     return chunks
 
 
+def _chunk_source_file(path: str, source: str) -> CodeChunk:
+    """Keep non-Python service source searchable and attributable to changed lines."""
+    lines = source.splitlines()
+    routes = [f"{method.upper()} {route}" for method, route in re.findall(
+        r"\b(?:app|router|server)\.(get|post|put|patch|delete)\s*\(\s*['\"`]([^'\"`]+)", source, re.I
+    )]
+    names = re.findall(r"\b(?:function|class)\s+([A-Za-z_$][\w$]*)|\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>", source)
+    symbols = list(dict.fromkeys(a or b for a, b in names))
+    return CodeChunk(f"{path}:1-{max(1, len(lines))}", path, ", ".join(symbols[:8]) or f"{Path(path).name} (source)",
+                     "module", 1, max(1, len(lines)), source, routes, set(), set(symbols))
+
+
 class CodeIndex:
     def __init__(self, root: Path, include: tuple[str, ...] | None = None, dense: bool = True) -> None:
         self.root = Path(root)
         self.chunks: list[CodeChunk] = []
-        for path in sorted(self.root.rglob("*.py")):
+        for path in sorted(p for p in self.root.rglob("*") if p.is_file() and (p.suffix == ".py" or p.suffix in JS_EXTENSIONS)):
             relative = path.relative_to(self.root).as_posix()
             if any(part in IGNORED_DIRS for part in path.parts) or relative.startswith("tests/"):
                 continue
             if include and relative.split("/", 1)[0] not in include:
                 continue
-            self.chunks.extend(chunk_python(relative, path.read_text(encoding="utf-8")))
+            source = path.read_text(encoding="utf-8", errors="replace")
+            if path.suffix == ".py":
+                try:
+                    self.chunks.extend(chunk_python(relative, source))
+                except SyntaxError:
+                    self.chunks.append(_chunk_source_file(relative, source))
+            else:
+                self.chunks.append(_chunk_source_file(relative, source))
         self._bm25_setup()
         self.vectors = _embed([f"{c.path} {c.symbol}\n{c.text}" for c in self.chunks]) if dense else None
 

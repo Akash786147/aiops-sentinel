@@ -17,7 +17,8 @@ IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc", "logs", ".git", "sentine
 GITIGNORE = "__pycache__/\n*.pyc\nlogs/\nsentinel_generated/\n"
 ENV = {"GIT_AUTHOR_NAME": "sentinel", "GIT_AUTHOR_EMAIL": "sentinel@localhost", "GIT_COMMITTER_NAME": "sentinel",
        "GIT_COMMITTER_EMAIL": "sentinel@localhost"}
-READABLE = {".py", ".txt", ".md", ".json", ".yaml", ".yml", ".toml", ".cfg", ".ini", ".html", ".js", ".css", ""}
+READABLE = {".py", ".txt", ".md", ".json", ".yaml", ".yml", ".toml", ".cfg", ".ini", ".html", ".js", ".jsx",
+            ".ts", ".tsx", ".mjs", ".cjs", ".css", ""}
 
 
 class Workspace:

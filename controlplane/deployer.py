@@ -6,6 +6,7 @@ service down: the failed deployment is recorded, an incident is opened, and the 
 from __future__ import annotations
 
 import time
+import re
 from collections.abc import Callable
 from pathlib import Path
 
@@ -152,20 +153,45 @@ class Deployer:
 
     def _gate(self, spec: ServiceSpec, instance: Instance) -> tuple[bool, str, str]:
         runtime, deadline = self.core.runtime, time.time() + self.core.settings.health_timeout_s
+        last_status = None
+        last_error = None
         with httpx.Client(timeout=2.0) as client:
             while time.time() < deadline:
                 status = runtime.status(instance.id)
                 if status.oom_killed:
                     return False, "Killed: out of memory during start-up", "oom"
-                if status.restarts > 0 or (not status.running and status.exit_code not in (None, 0)):
+                if not status.running and status.exit_code == 0:
+                    return False, "Service exited cleanly before the health check passed", "stopped"
+                if status.restarts > 0 or (not status.running and status.exit_code is not None):
                     return False, f"Process exited during start-up (exit code {status.exit_code})", "crash"
                 try:
-                    if client.get(instance.url + spec.health_path).status_code == 200:
+                    response = client.get(instance.url + spec.health_path)
+                    last_status = response.status_code
+                    if last_status == 200:
                         return True, "healthy", ""
-                except httpx.HTTPError:
-                    pass
+                except httpx.HTTPError as exc:
+                    last_error = type(exc).__name__
                 time.sleep(0.4)
-        return False, f"Health check did not pass within {self.core.settings.health_timeout_s:.0f} s", "unhealthy"
+        reason = f"Health check GET {spec.health_path} did not pass within {self.core.settings.health_timeout_s:.0f} s"
+        if last_status is not None:
+            reason += f" (last HTTP status: {last_status}; expected 200)"
+        elif last_error:
+            reason += f" (last request error: {last_error})"
+        log_text = "\n".join(runtime.logs(instance.id, 120))
+        actual_port = re.search(r"https?://(?:[^:/\s]+|\[[^]]+\]):(\d+)(?:/|\s|$)", log_text)
+        if actual_port and int(actual_port.group(1)) != spec.port:
+            reason += f"; application logs show it listening on port {actual_port.group(1)} while Sentinel is configured for port {spec.port}. Update the application port and restart."
+        with httpx.Client(timeout=2.0) as client:
+            for candidate in ("/health", "/healthz", "/api/health"):
+                if candidate == spec.health_path:
+                    continue
+                try:
+                    if client.get(instance.url + candidate).status_code == 200:
+                        reason += f"; GET {candidate} returned 200. Set the service health check path to {candidate} and restart."
+                        break
+                except httpx.HTTPError:
+                    continue
+        return False, reason, "unhealthy"
 
     def _fail(self, service: str, dep_id: int, kind: str, reason: str, **detail) -> dict:
         store = self.core.store

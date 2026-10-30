@@ -10,7 +10,7 @@ from controlplane.core import Core
 from controlplane.locks import Busy
 
 AUTO_KINDS = {"crash_loop", "oom", "unhealthy", "memory"}
-SEVERITY = {"alert": 0, "regression": 1, "cpu": 2, "crash": 3, "build": 3, "unhealthy": 4, "memory": 5, "oom": 6, "crash_loop": 7}
+SEVERITY = {"alert": 0, "regression": 1, "cpu": 2, "stopped": 3, "crash": 3, "build": 3, "unhealthy": 4, "memory": 5, "oom": 6, "crash_loop": 7}
 
 
 def decide(core: Core, incident: dict) -> tuple[str, str]:

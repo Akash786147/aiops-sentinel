@@ -55,12 +55,17 @@ function render() {
     const maxTotal = Math.max(1, ...suspects.map(s => FEATURES.reduce((a, [k, , , w]) => a + (s.features?.[k] || 0) * w, 0)));
     const ranges = (dg.packet?.changes || []).filter(c => c.behavioural && top && c.file === top.path).map(c => [c.start, c.end]);
     const src = top ? loadCode(top.path, dg.versions?.bad) : null;
-    const tests = Object.entries(dg.tests || {}).map(([name, t]) => `<div class="card" style="margin-bottom:14px"><div style="display:flex;gap:10px;align-items:center"><b>${name === 'template' ? 'Template / start-up test' : 'LLM test'}</b>${pill(t.confirming ? 'confirming' : 'not confirming', t.confirming ? 'ok' : 'bad')}
-        <span class="muted" style="font-size:12.5px">${t.guard?.length ? 'guard: ' + esc(t.guard.join('; ')) : `bad version: ${esc(t.faulty?.outcome || '—')} · last good version: ${esc(t.fixed?.outcome || '—')}`}</span></div>
+    const tests = Object.entries(dg.tests || {}).map(([name, t]) => `<div class="card" style="margin-bottom:14px"><div style="display:flex;gap:10px;align-items:center"><b>${name === 'template' ? 'Template / start-up test' : name === 'runtime' ? 'Docker runtime probe' : 'LLM test'}</b>${pill(t.confirming ? 'confirming' : t.port_fix_confirming ? 'port confirmed' : 'not confirming', t.confirming || t.port_fix_confirming ? 'ok' : 'bad')}
+        <span class="muted" style="font-size:12.5px">${t.port_mismatch ? `configured port ${t.configured_port}, source listens on ${t.detected_port} · ` : ''}${t.guard?.length ? 'guard: ' + esc(t.guard.join('; ')) : `bad version: ${esc(t.faulty?.outcome || '—')} · last good version: ${esc(t.fixed?.outcome || '—')}`}</span></div>
         ${t.code ? `<details style="margin-top:10px"><summary class="muted" style="cursor:pointer">test code</summary><div class="code" style="margin-top:8px">${highlight(t.code).split('\n').map((l, i) => `<div class="ln"><span class="no">${i + 1}</span><span class="tx">${l || ' '}</span></div>`).join('')}</div></details>` : ''}
         ${t.faulty?.detail ? `<div class="logs" style="margin-top:10px;max-height:110px">${esc(t.faulty.detail)}</div>` : ''}</div>`).join('');
     const patch = dg.patch || {};
-    const canApprove = patch.applies && !['resolved', 'dismissed'].includes(inc.status);
+    const codeConfirmed = Object.values(dg.tests || {}).some(t => t.confirming);
+    const configConfirmed = Object.values(dg.tests || {}).some(t => t.port_fix_confirming);
+    const portMismatch = Object.values(dg.tests || {}).some(t => t.port_mismatch);
+    const portFixProposed = Object.values(dg.tests || {}).some(t => patch.settings?.port === t.detected_port);
+    const confirmed = inc.patch ? codeConfirmed : configConfirmed;
+    const canApprove = patch.applies && confirmed && (!portMismatch || portFixProposed) && !['resolved', 'dismissed'].includes(inc.status);
     const restored = inc.status === 'rolled_back' && !patch.applies;
     if (restored) patch.summary = `${patch.summary || ''} (already live: the automatic rollback restored the last good code)`;
     diag = `<div class="sec-h"><h2>Diagnosis</h2><span class="sub">${dg.llm?.model ? 'hybrid trace + ' + esc(dg.llm.model) : 'hybrid trace'} · packet ${esc((dg.packet?.digest || '').slice(0, 8))}</span></div>
@@ -73,12 +78,13 @@ function render() {
         ${top ? (src ? `<div class="code-h">${esc(top.path)} ${chip('lines ' + top.start + '–' + top.end, 'indigo')}</div>${codeView(src, { focus: [top.start, top.end], changed: ranges })}` : `<div class="empty sm">${src === false ? 'Source not available.' : 'Loading…'}</div>`) : ''}
 
       </div></div>
-      <div class="sec-h"><h2>Confirming tests</h2><span class="sub">must fail on the bad version and pass on the last good version</span></div>${tests || '<div class="empty sm">No test for this incident type.</div>'}
+      <div class="sec-h"><h2>Confirming tests</h2><span class="sub">must fail on the bad version and pass on the last good version</span></div>${tests || '<div class="empty sm">No confirming test was generated for this incident type.</div>'}
       <div class="sec-h"><h2>Proposed fix</h2><span class="sub">${esc(patch.summary || '')} · ${esc(patch.source || '')}${patch.applies || restored ? '' : ' · does not apply to the current code'}</span></div>
+      ${patch.settings?.port ? `<div class="card" style="margin-bottom:12px">Settings change on approval: Application port ${patch.settings.previous_port} → ${patch.settings.port}</div>` : ''}
       ${diffView(inc.patch)}
       <div class="card" style="margin-top:14px"><div class="form2" style="max-width:none"><div class="row2"><label>Approver<input id="approver" value="${esc(S.actor)}" placeholder="your name"></label><label>Note<input id="note" placeholder="optional"></label></div>
         <div class="acts"><button class="btn" id="approve" ${canApprove ? '' : 'disabled'}>Approve: apply and deploy</button><button class="btn ghost" id="dismiss" ${['resolved', 'dismissed'].includes(inc.status) ? 'disabled' : ''}>${restored ? 'Close: keep the rollback' : 'Dismiss'}</button><button class="btn ghost" id="again">Investigate again</button></div>
-        <div class="muted" style="font-size:12.5px">Approve applies the patch to the working copy, commits it as “Sentinel fix for INC-${inc.id}”, and runs the normal Restart (build, health gate, swap). Nothing is applied without a named approver.</div></div></div>`;
+        <div class="muted" style="font-size:12.5px">Approve applies the proposed code and settings changes, commits any code as “Sentinel fix for INC-${inc.id}”, and runs the normal Restart (build, health gate, swap). Nothing is applied without a named approver.${portMismatch && !portFixProposed ? ' The detected port must be included in the proposed fix before approval.' : patch.applies && !confirmed ? ' Approval is disabled until a confirming test passes.' : ''}</div></div></div>`;
   }
 
   setHTML(box, `<div class="hdr"><h1>INC-${inc.id}</h1>${pill(inc.kind, 'bad')}${pill(inc.status.replace('_', ' '), INC_KIND[inc.status] || '')}<a class="ver" href="#/service/${inc.service}">${esc(inc.service)}</a><span class="ver">opened ${ago(inc.opened_at)}</span></div>

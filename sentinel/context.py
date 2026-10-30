@@ -19,6 +19,7 @@ from sentinel.detection import Incident
 from sentinel.registry import Registry
 
 PACKET_VERSION = "1.0"
+SOURCE_SUFFIXES = (".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs")
 SECRET = re.compile(r"(?i)(api[_-]?key|token|password|secret|authorization)([\"'\s:=]+)([^\s\"',}]+)")
 CARD = re.compile(r"(?<![\d.])\d{13,19}(?![\d.])")
 HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
@@ -106,11 +107,12 @@ def deployment_changes(root: Path, previous: str = "deploy-prev", current: str =
         files = [f for f in _git(root, "show", "--name-only", "--format=", sha).split() if f]
         commits.append({"sha": sha, "message": message, "files": files, "order": order})
         for file in files:
-            if file.endswith(".py"):
+            if file.endswith(SOURCE_SUFFIXES):
                 behavioural[(sha, file)] = behavioural_change(_git(root, "show", f"{sha}~1:{file}"), _git(root, "show", f"{sha}:{file}"))
     by_sha = {c["sha"]: c for c in commits}
     ranges, file = [], None
-    for diff_line in _git(root, "diff", "-U0", previous, current, "--", "*.py").splitlines():
+    pathspecs = [f"*{suffix}" for suffix in SOURCE_SUFFIXES]
+    for diff_line in _git(root, "diff", "-U0", previous, current, "--", *pathspecs).splitlines():
         if diff_line.startswith("+++ b/"):
             file = diff_line[6:]
             continue

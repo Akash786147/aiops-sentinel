@@ -5,6 +5,7 @@ import json
 import re
 
 from controlplane.core import Core
+from controlplane.ports import infer_source_port
 
 NAME = re.compile(r"^[a-z][a-z0-9-]{1,30}$")
 
@@ -17,7 +18,8 @@ def _manifest(core: Core, service: str) -> dict:
 def _row(core: Core, name: str, source: str, kind: str, manifest: dict, overrides: dict) -> dict:
     s = core.settings
     row = {"name": name, "source": source, "kind": kind, "package": manifest.get("package"),
-           "module": manifest.get("module"), "port": manifest.get("port", 8000), "health_path": manifest.get("health_path", "/health"),
+           "module": manifest.get("module"), "port": manifest.get("port") or infer_source_port(core.workspace(name).root) or 8000,
+           "health_path": manifest.get("health_path", "/health"),
            "metrics_path": manifest.get("metrics_path"), "mem_limit_mb": s.default_mem_limit_mb, "cpu_limit": s.default_cpu_limit,
            "owner": manifest.get("owner", "unassigned"), "auto_rollback": True}
     row.update({k: v for k, v in overrides.items() if v is not None})

@@ -278,3 +278,80 @@ def confirm(faulty: Path, fixed: Path, code: str) -> dict:
     fixed_run = run_in_sandbox(fixed, code)
     return {"guard": [], "faulty": faulty_run, "fixed": fixed_run,
             "confirming": faulty_run["outcome"] == "assertion_failed" and fixed_run["outcome"] == "passed"}
+
+
+def confirm_node(runtime, spec, faulty: Path, fixed: Path, probes: list[str], timeout_s: float = 45.0) -> dict:
+    """Confirm a Node service with HTTP probes against isolated Docker builds of both commits.
+
+    No generated JavaScript is executed on the control-plane host. Each version is built and run
+    using the configured container runtime, then queried only at the service's declared health
+    endpoint and incident routes.
+    """
+    import time
+
+    import httpx
+    from dataclasses import replace
+
+    from controlplane.ports import infer_source_port
+
+    probes = list(dict.fromkeys(p if p.startswith("/") else "/" + p for p in probes if p))
+    if not probes:
+        probes = [spec.health_path]
+    code = "\n".join(f"GET {path} must return HTTP 200" if path == spec.health_path else
+                      f"GET {path} must return a non-error response" for path in probes)
+
+    def exercise(workspace: Path, label: str) -> dict:
+        tag = f"confirm-{label}-{time.time_ns():x}"
+        candidate_port = infer_source_port(workspace) or spec.port
+        candidate_spec = replace(spec, port=candidate_port)
+        built = runtime.build(candidate_spec, workspace, tag)
+        if not built.ok:
+            return {"outcome": "assertion_failed", "exit_code": 1, "detail": (built.log or "container build failed")[-1200:]}
+        instance = None
+        try:
+            instance = runtime.run(candidate_spec, built.image)
+            deadline = time.monotonic() + timeout_s
+            last_detail = "service did not answer before timeout"
+            saw_response = False
+            with httpx.Client(timeout=2.0) as client:
+                while time.monotonic() < deadline:
+                    status = runtime.status(instance.id)
+                    if not status.running or status.restarts > 0:
+                        logs = "\n".join(runtime.logs(instance.id, 60))[-900:]
+                        return {"outcome": "assertion_failed", "exit_code": status.exit_code,
+                                "detail": f"service exited or restarted during the probe (exit code {status.exit_code}, restarts {status.restarts})"
+                                         + (f"\n{logs}" if logs else "")}
+                    observed = []
+                    for path in probes:
+                        try:
+                            response = client.get(instance.url + path)
+                            saw_response = True
+                            observed.append((path, response.status_code))
+                        except httpx.HTTPError as exc:
+                            last_detail = f"{path}: {type(exc).__name__}"
+                            break
+                    else:
+                        failures = [(path, status_code) for path, status_code in observed
+                                    if status_code >= 500 or (path == spec.health_path and status_code != 200)]
+                        if not failures:
+                            return {"outcome": "passed", "exit_code": 0,
+                                    "detail": "; ".join(f"GET {path} -> HTTP {status_code}" for path, status_code in observed)}
+                        last_detail = "; ".join(f"GET {path} -> HTTP {status_code}" for path, status_code in failures)
+                    time.sleep(0.5)
+            return {"outcome": "assertion_failed" if saw_response else "error",
+                    "exit_code": 1 if saw_response else None, "detail": last_detail}
+        except Exception as exc:  # runtime failure is not test evidence
+            return {"outcome": "error", "exit_code": None, "detail": f"{type(exc).__name__}: {exc}"}
+        finally:
+            if instance is not None:
+                runtime.stop(instance.id)
+            runtime.remove_image(built.image)
+
+    faulty_run = exercise(faulty, "bad")
+    fixed_run = exercise(fixed, "good")
+    detected_port = infer_source_port(faulty) or spec.port
+    return {"code": code, "guard": [], "faulty": faulty_run, "fixed": fixed_run,
+            "configured_port": spec.port, "detected_port": detected_port,
+            "port_mismatch": detected_port != spec.port,
+            "port_fix_confirming": detected_port != spec.port and faulty_run["outcome"] == "passed" and fixed_run["outcome"] == "passed",
+            "confirming": faulty_run["outcome"] == "assertion_failed" and fixed_run["outcome"] == "passed"}

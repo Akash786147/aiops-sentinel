@@ -22,6 +22,7 @@ from pathlib import Path
 
 from controlplane.core import Core
 from controlplane.locks import Busy
+from controlplane.runtime.base import ServiceSpec
 from sentinel import llm
 from sentinel.context import build_packet, redact, route_baseline_stats
 from sentinel.detection import Incident as DetectionIncident
@@ -29,13 +30,14 @@ from sentinel.detection import Signal
 from sentinel.indexing import CodeIndex
 from sentinel.registry import Registry
 from sentinel.registry import Service as RegistryService
-from sentinel.testgen import confirm, guard, llm_test, template_test
+from sentinel.testgen import confirm, confirm_node, guard, llm_test, template_test
 from sentinel.tracing import decide, incident_query, llm_rerank, rank
 
-KIND_SYMPTOM = {"crash": "errors", "crash_loop": "errors", "build": "errors", "alert": "errors", "oom": "memory", "memory": "memory",
+KIND_SYMPTOM = {"crash": "errors", "crash_loop": "errors", "build": "errors", "stopped": "errors", "alert": "errors", "oom": "memory", "memory": "memory",
                 "cpu": "cpu", "unhealthy": "latency", "regression": "latency"}
-STARTUP_KINDS = {"crash", "crash_loop", "build", "unhealthy"}
+STARTUP_KINDS = {"crash", "crash_loop", "build", "stopped", "unhealthy"}
 FRAME = re.compile(r'^\s*File "(?P<file>[^"]+)", line (?P<line>\d+), in (?P<func>.+)$')
+JS_FRAME = re.compile(r'^\s*at (?:(?P<func>.*?) \()?((?P<file>(?:/|[A-Za-z]:\\)[^():]+\.((?:c|m)?js|tsx?)):(?P<line>\d+):\d+)\)?\s*$')
 EXC_LINE = re.compile(r"^(?P<type>[A-Za-z_][\w.]*(?:Error|Exception|Exit|Interrupt|Warning)):\s*(?P<msg>.*)$")
 PATCH_PROMPT = """You fix a regression in a service. The diff below is the change that went live; the evidence shows what broke.
 Return ONLY a unified diff (git format, paths relative to the repository root, a/ and b/ prefixes) that fixes the root cause with
@@ -67,6 +69,29 @@ def parse_tracebacks(lines: list[str], repo_files: list[str], service: str, at: 
             events.append({"at": at or time.time(), "service": service, "level": "error", "path": "(start-up)", "method": "-", "body": "",
                            "exception": exc["type"].rsplit(".", 1)[-1], "message": exc["msg"][:500], "frames": frames})
             inside = False
+    return events
+
+
+def parse_js_tracebacks(lines: list[str], repo_files: list[str], service: str, at: float | None = None) -> list[dict]:
+    """Node stack traces → repo-relative exception frames for cross-language investigations."""
+    events, frames, error = [], [], None
+    for line in lines:
+        match = EXC_LINE.match(line.strip())
+        if match and (match["type"].endswith("Error") or match["type"].endswith("Exception")):
+            if error and frames:
+                events.append({"at": at or time.time(), "service": service, "level": "error", "path": "(start-up)", "method": "-", "body": "",
+                               "exception": error[0].rsplit(".", 1)[-1], "message": error[1][:500], "frames": frames})
+            error, frames = (match["type"], match["msg"]), []
+            continue
+        frame = JS_FRAME.match(line)
+        if frame and error:
+            path = frame["file"].replace("\\", "/")
+            rel = next((f for f in repo_files if path.endswith("/" + f) or path == f), None)
+            if rel:
+                frames.append({"file": rel, "line": int(frame["line"]), "function": (frame["func"] or "<anonymous>").strip()})
+    if error and frames:
+        events.append({"at": at or time.time(), "service": service, "level": "error", "path": "(start-up)", "method": "-", "body": "",
+                       "exception": error[0].rsplit(".", 1)[-1], "message": error[1][:500], "frames": frames})
     return events
 
 
@@ -167,7 +192,8 @@ class Investigator:
         log_lines = (bad.get("detail") or {}).get("logs", "").splitlines()
         if bad.get("instance"):
             log_lines += self.core.runtime.logs(bad["instance"], 400)
-        exceptions = parse_json_events(log_lines) + parse_tracebacks(log_lines, files, name, at=window[0] + 1)
+        exceptions = (parse_json_events(log_lines) + parse_tracebacks(log_lines, files, name, at=window[0] + 1)
+                      + parse_js_tracebacks(log_lines, files, name, at=window[0] + 1))
         (faulty / "logs").mkdir(exist_ok=True)
         (faulty / "logs" / f"{name}.jsonl").write_text("".join(json.dumps({**e, "at": max(e.get("at", 0), window[0] + 1)}) + "\n" for e in exceptions),
                                                         encoding="utf-8")
@@ -213,8 +239,28 @@ class Investigator:
                 baselines = {r: v for r in routes if (v := route_baseline_stats(samples, name, r, start))}
                 code, meta = llm_test(index, packet, module, suspects, baselines, hypothesis)
                 tests["llm"] = {"code": code, **(confirm(faulty, good_tree, code) if code else {"confirming": False, "guard": ["no test generated"]}), "meta": meta}
+        elif self.core.runtime.name == "docker" and any(
+            p.is_file() and p.suffix in {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}
+            and not {"node_modules", "dist", "build"}.intersection(p.parts) for p in faulty.rglob("*")
+        ):
+            probes = [svc.get("health_path") or "/health"]
+            probes.extend(route.split(" ", 1)[1] for route in packet.incident["routes"]
+                          if route.split(" ", 1)[0].upper() in ("GET", "HEAD") and " " in route)
+            probes.extend(r["path"] for r in packet.slow_or_failed_requests + packet.exemplar_requests
+                          if r.get("method", "GET").upper() in ("GET", "HEAD") and r.get("path"))
+            runtime_test = confirm_node(self.core.runtime, ServiceSpec(name, svc["module"] or "", int(svc["port"]),
+                                                                        svc.get("health_path") or "/health", svc.get("metrics_path"),
+                                                                        int(svc["mem_limit_mb"]), float(svc["cpu_limit"])),
+                                       faulty, good_tree, probes[:7], timeout_s=self.core.settings.health_timeout_s)
+            tests["runtime"] = {**runtime_test, "confirming": runtime_test["confirming"]}
 
         patch = self._propose(ws, packet, index, suspects, prev_sha, bad_sha)
+        runtime_test = tests.get("runtime") or {}
+        if runtime_test.get("port_mismatch"):
+            patch["settings"] = {"port": runtime_test["detected_port"], "previous_port": runtime_test["configured_port"]}
+            patch["summary"] += f"; set Application port {runtime_test['configured_port']} → {runtime_test['detected_port']}"
+            if not patch.get("applies") and runtime_test.get("port_fix_confirming"):
+                patch.update(source="configuration", applies=True, files=[], text="")
         ws.git("worktree", "remove", "--force", str(faulty), check=False)
         return {
             "suspects": [asdict(s) for s in suspects[:10]],
@@ -274,21 +320,36 @@ class Investigator:
         store = self.core.store
         inc = store.get_incident(inc_id)
         meta = (inc.get("diagnosis") or {}).get("patch") or {}
-        if not inc.get("patch") or not meta.get("applies"):
+        settings_patch = meta.get("settings") or {}
+        has_code_patch = bool(inc.get("patch"))
+        has_config_patch = bool(settings_patch.get("port"))
+        if not (has_code_patch or has_config_patch) or not meta.get("applies"):
             raise NotApprovable("this incident has no patch that applies")
+        tests = (inc.get("diagnosis") or {}).get("tests") or {}
+        code_confirmed = any(test.get("confirming") for test in tests.values())
+        config_confirmed = any(test.get("port_fix_confirming") for test in tests.values())
+        if (has_code_patch and not code_confirmed) or (not has_code_patch and not config_confirmed):
+            raise NotApprovable("no confirming test passed on the bad and last-good versions")
         if inc["status"] in ("resolved", "dismissed"):
             raise NotApprovable(f"incident is already {inc['status']}")
         ws = self.core.workspace(inc["service"])
         with self.core.locks.hold(inc["service"]):
-            if not self._applies(ws, inc["patch"]):
+            if has_code_patch and not self._applies(ws, inc["patch"]):
                 raise NotApprovable("the patch no longer applies to the current code")
-            with tempfile.NamedTemporaryFile("w", suffix=".patch", delete=False, encoding="utf-8", newline="\n") as handle:
-                handle.write(inc["patch"])
-                path = handle.name
-            try:
-                subprocess.run(["git", "apply", path], cwd=ws.root, capture_output=True, text=True, check=True)
-            finally:
-                Path(path).unlink(missing_ok=True)
+            if has_code_patch:
+                with tempfile.NamedTemporaryFile("w", suffix=".patch", delete=False, encoding="utf-8", newline="\n") as handle:
+                    handle.write(inc["patch"])
+                    path = handle.name
+                try:
+                    subprocess.run(["git", "apply", path], cwd=ws.root, capture_output=True, text=True, check=True)
+                finally:
+                    Path(path).unlink(missing_ok=True)
+            if has_config_patch:
+                port = int(settings_patch["port"])
+                if not 1 <= port <= 65535:
+                    raise NotApprovable("proposed application port is invalid")
+                store.update_service(inc["service"], port=port)
+                self.core.audit(approver, "settings_changed", service=inc["service"], port=port)
             message = f"Sentinel fix for INC-{inc_id}: {meta.get('summary', 'approved patch')} (approved by {approver})"
             dep = self.deployer._deploy(inc["service"], "approve", approver, message)
         if dep["status"] == "healthy":

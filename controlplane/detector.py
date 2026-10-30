@@ -31,6 +31,7 @@ class Detector:
         self.on_incident = on_incident or (lambda _id: None)
         self.interval = interval
         self._restarts: dict[int, int] = {}
+        self._down_reported: set[int] = set()
         self._restart_times: dict[str, deque] = defaultdict(lambda: deque(maxlen=50))
         self._unhealthy_since: dict[str, float] = {}
         self._guard_since: dict[tuple[str, str], float] = {}
@@ -99,6 +100,8 @@ class Detector:
 
     def _lifecycle(self, svc: dict, sample: dict, now: float) -> None:
         name, dep, s = svc["name"], sample["deployment"], self.core.settings
+        if sample["running"]:
+            self._down_reported.discard(dep)
         seen = self._restarts.get(dep, 0)
         if sample["restarts"] > seen:
             self._restarts[dep] = sample["restarts"]
@@ -111,10 +114,19 @@ class Detector:
                 kind = "oom" if sample["oom_killed"] else "crash"
             summary = f"{name} restarted {len(recent)} time(s) in {s.crash_loop_window_s:.0f} s" + (" after an OOM kill" if sample["oom_killed"] else "")
             self.raise_incident(name, dep, kind, summary, [{"kind": kind, "restarts": sample["restarts"], "exit_code": sample.get("exit_code")}])
+            if not sample["running"]:
+                self._down_reported.add(dep)
         elif not sample["running"]:
-            kind = "oom" if sample["oom_killed"] else "crash"
-            summary = f"{name} is down (" + ("killed: out of memory" if sample["oom_killed"] else f"exit code {sample.get('exit_code')}") + ")"
-            self.raise_incident(name, dep, kind, summary, [{"kind": kind, "exit_code": sample.get("exit_code")}])
+            if dep not in self._down_reported:
+                if sample["oom_killed"]:
+                    kind, summary = "oom", f"{name} was killed after exceeding its memory limit"
+                elif sample.get("exit_code") == 0:
+                    kind, summary = "stopped", f"{name} exited cleanly while it was expected to keep running"
+                else:
+                    kind = "crash"
+                    summary = f"{name} exited unexpectedly (exit code {sample.get('exit_code')})"
+                self.raise_incident(name, dep, kind, summary, [{"kind": kind, "exit_code": sample.get("exit_code")}])
+                self._down_reported.add(dep)
         if sample["running"] and sample.get("health") == "unhealthy":
             since = self._unhealthy_since.setdefault(name, now)
             if now - since >= s.unhealthy_grace_s:
